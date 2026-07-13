@@ -99,12 +99,17 @@ class App:
             self.connect["proc"].terminate()
             self.connect = None
 
+    def _layout(self):
+        return f"{config.ROTATE}:{config.FONT_SIZE}:{self.display.width}x{self.display.height}"
+
     def open_article(self, row):
         if self.reading:
             self.reading["cancel"] = True          # stop any in-flight pagination
         text = renderer.markdown_to_text(row["body"])
+        total = library.cached_pages(self.db, row["id"], self._layout())
         r = {"row": row, "pages": [], "page": 0, "line_h": None,
-             "target": row["read_position"] or 0, "done": False, "cancel": False}
+             "target": row["read_position"] or 0, "total": total,
+             "done": False, "cancel": False}
         self.reading = r
         if self.notify:                            # device: paginate in background
             threading.Thread(target=self._paginate_bg, args=(r, text), daemon=True).start()
@@ -113,8 +118,9 @@ class App:
                                                     self.display.height, reserve_lines=4):
                 r["pages"].append(lines)
                 r["line_h"] = lh
-            r["done"] = True
+            r["done"], r["total"] = True, len(r["pages"])
             r["page"] = min(r["target"], max(len(r["pages"]) - 1, 0))
+            library.set_pages(self.db, row["id"], self._layout(), r["total"])
 
     def _paginate_bg(self, r, text):
         W, H = self.display.width, self.display.height
@@ -129,8 +135,12 @@ class App:
                 r["page"] = r["target"]
                 self.notify("_render")
         r["done"] = True
+        with self._lock:
+            r["total"] = len(r["pages"])
+        # cache the total for this layout (own connection — different thread)
+        library.set_pages(library.connect(), r["row"]["id"], self._layout(), r["total"])
         if not r["cancel"]:
-            self.notify("_render")                 # final count / "+" drops off
+            self.notify("_render")
 
     # ---- input ----
     def handle(self, action):
@@ -217,6 +227,7 @@ class App:
             title = r["row"]["title"]
             with self._lock:
                 npages = len(r["pages"])
+                total = r["total"]
                 ready = npages > r["target"]
                 if ready:
                     r["page"] = min(r["page"], npages - 1)
@@ -226,7 +237,8 @@ class App:
                 img = renderer.render_page(lines, self.font, W, H, header=title)
                 self.display.show(img, text=(title, lines))
             else:
-                info = f"Page {pg + 1} / {npages}{'' if r['done'] else '+'}"
+                # cached total -> "Page 5 / 270"; unknown yet -> just "Page 5"
+                info = f"Page {pg + 1} / {total}" if total else f"Page {pg + 1}"
                 lines = [info, ""] + page_lines
                 img = renderer.render_page(lines, self.font, W, H,
                                            line_h=line_h, header=title)

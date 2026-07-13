@@ -17,9 +17,15 @@ CREATE TABLE IF NOT EXISTS articles (
     date_added    TEXT,
     last_read     TEXT,
     favourite     INTEGER DEFAULT 0,
+    page_count    INTEGER,          -- cached total pages for `layout`
+    layout        TEXT,             -- rotation:font:WxH the count was computed for
     UNIQUE(category, title)
 );
 """
+
+# Columns added after the first release; ignore if they already exist.
+_MIGRATIONS = ["ALTER TABLE articles ADD COLUMN page_count INTEGER",
+               "ALTER TABLE articles ADD COLUMN layout TEXT"]
 
 
 def connect(path=None):
@@ -27,6 +33,11 @@ def connect(path=None):
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")   # reader + importer can share the DB
     db.execute(SCHEMA)
+    for stmt in _MIGRATIONS:
+        try:
+            db.execute(stmt)
+        except sqlite3.OperationalError:
+            pass                            # column already present
     return db
 
 
@@ -54,7 +65,9 @@ def import_dir(db, root=None):
             db.execute(
                 """INSERT INTO articles (title, body, category, date_added)
                    VALUES (?, ?, ?, ?)
-                   ON CONFLICT(category, title) DO UPDATE SET body=excluded.body""",
+                   ON CONFLICT(category, title) DO UPDATE SET
+                       body=excluded.body,
+                       page_count=NULL, layout=NULL""",  # body may have changed
                 (_title_of(body, fn), body, category, now))
             seen += 1
     db.commit()
@@ -100,6 +113,21 @@ def continue_reading(db):
 
 def random_article(db):
     return db.execute("SELECT * FROM articles ORDER BY RANDOM() LIMIT 1").fetchone()
+
+
+def cached_pages(db, article_id, layout):
+    """Total pages if we've cached it for this exact layout, else None."""
+    row = db.execute("SELECT page_count, layout FROM articles WHERE id=?",
+                     (article_id,)).fetchone()
+    if row and row["layout"] == layout and row["page_count"]:
+        return row["page_count"]
+    return None
+
+
+def set_pages(db, article_id, layout, count):
+    db.execute("UPDATE articles SET page_count=?, layout=? WHERE id=?",
+               (count, layout, article_id))
+    db.commit()
 
 
 def set_position(db, article_id, page):

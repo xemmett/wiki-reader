@@ -273,9 +273,12 @@ Missing `spidev` or a blank panel → `pip install spidev` and enable SPI:
 - **Markdown renders to plain text** (bold/italic stripped, not styled). Fine for
   reading; add font-weight rendering only if you miss it.
 - **Big articles paginate in the background.** Opening shows page 0 instantly and
-  keeps wrapping the rest in a thread (`Page 4 / 12+` — the `+` means still
-  loading). Resuming deep into a long article shows "Loading page N…" while it
-  races there, since pagination is sequential. Page count settles when done.
+  keeps wrapping the rest in a thread. The total page count is cached in the DB per
+  layout (rotation + font + panel size), so it shows `Page 5 / 270` immediately on
+  every open after the first. The very first open of an uncached article shows just
+  `Page 5` until the count is known, then caches it. Changing orientation or font
+  recomputes it once. Resuming deep into a long article shows "Loading page N…"
+  briefly, since pagination is sequential.
 - **Refresh:** page turns use partial refresh (fast, no flash); a full refresh
   every `EPD_FULL_EVERY` (default 8) updates clears ghosting. Lower it if ghosting
   bugs you, raise it for fewer flashes.
