@@ -39,6 +39,15 @@ AI_MODEL = os.environ.get("PIWI_AI_MODEL")                     # optional overri
 AI_KEY = os.environ.get("PIWI_AI_KEY")                         # API key (env fallback)
 # Piwi Connect writes provider/model/key here; it overrides the env values above.
 AI_CONFIG_PATH = os.environ.get("PIWI_AI_CONFIG", os.path.join(BASE, "ai.json"))
+
+# Text-to-speech (Listen). Piper CLI + a small voice model (see setup.sh).
+PIPER_BIN = os.environ.get("PIPER_BIN", "piper")
+PIPER_MODEL = os.environ.get("PIPER_MODEL", os.path.join(BASE, "voices", "en_US-lessac-low.onnx"))
+
+# Setup hotspot: brought up by Piwi Connect when the Pi is offline, so you can
+# join it from a phone and enter your real Wi-Fi. nmcli requires an 8+ char pass.
+HOTSPOT_SSID = os.environ.get("PIWI_HOTSPOT_SSID", "Piwi-Setup")
+HOTSPOT_PASS = os.environ.get("PIWI_HOTSPOT_PASS", "piwisetup")
 # E-ink: partial refresh (no flash) between full refreshes. Full every Nth update
 # clears ghosting. 0 = never (all partial after the first frame, no self-refresh
 # flash, but ghosting can build up). Lower = cleaner; higher/0 = fewer flashes.

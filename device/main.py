@@ -48,6 +48,8 @@ class App:
         self.reading = None    # {row, pages, page, line_h, target, done, cancel}
         self.connect = None    # {proc, ip} while Piwi Connect is running
         self.recommend = None  # {lines, done, cancel} while AI Recommend runs
+        self.player = None     # {row, n, idx, state, obj} while Listen plays
+        self.bt = None         # {lines, done} status while scanning/connecting BT
         self.asleep = False
         self._slept = False    # panel put to sleep for the current sleep screen
         self._lock = threading.Lock()
@@ -61,6 +63,7 @@ class App:
             ("Continue Reading", self.open_continue),
             ("Recent", self.open_recent),
             ("Random", self.open_random),
+            ("Listen", self.open_listen),
             ("AI Recommend", self.open_ai_recommend),
             ("Settings", self.open_settings),
         ]
@@ -152,18 +155,92 @@ class App:
         b = battery.read()
         info = f"Battery: {b}%" if b is not None else "Battery: n/a (no UPS HAT)"
         self.push("Settings", [("Piwi Connect", self.start_connect),
+                               ("Bluetooth", self.open_bluetooth),
                                (info, None),
                                (f"Font size: {config.FONT_SIZE}", None)])
 
     def start_connect(self):
         import subprocess
+        import wifi
+        online = net.connected()
+        if not online:                          # offline -> setup hotspot for wifi config
+            try:
+                wifi.start_hotspot()
+            except Exception:
+                pass
         proc = subprocess.Popen([sys.executable, os.path.join(config.BASE, "connect.py")])
-        self.connect = {"proc": proc, "ip": net.get_ip()}
+        ip = net.get_ip() if online else "10.42.0.1"   # nmcli hotspot gateway
+        self.connect = {"proc": proc, "ip": ip, "hotspot": not online}
 
     def stop_connect(self):
         if self.connect:
             self.connect["proc"].terminate()
+            if self.connect.get("hotspot"):
+                try:
+                    import wifi
+                    wifi.stop_hotspot()
+                except Exception:
+                    pass
             self.connect = None
+
+    # ---- Bluetooth ----
+    def open_bluetooth(self):
+        self.bt = {"lines": ["Scanning for devices…", "(about 8 seconds)"], "done": False}
+        threading.Thread(target=self._bt_scan_bg, daemon=True).start()
+
+    def _bt_scan_bg(self):
+        import bt
+        try:
+            devices = bt.scan()
+        except Exception as e:
+            self.bt = {"lines": ["Bluetooth error:", str(e)[:60], "", "Back to return."], "done": True}
+            self._notify()
+            return
+        self.bt = None
+        items = [(name or mac, (lambda m=mac, n=name: self._bt_connect(m, n)))
+                 for mac, name in devices] or [("No devices found", None)]
+        self.push("Bluetooth", items)
+        self._notify()
+
+    def _bt_connect(self, mac, name):
+        self.bt = {"lines": [f"Connecting to {name or mac}…"], "done": False}
+        threading.Thread(target=lambda: self._bt_connect_bg(mac, name), daemon=True).start()
+
+    def _bt_connect_bg(self, mac, name):
+        import bt
+        try:
+            ok = bt.connect(mac)
+        except Exception:
+            ok = False
+        head = "Connected to " if ok else "Failed to connect to "
+        self.bt = {"lines": [head + (name or mac), "", "Back to return."], "done": True}
+        self._notify()
+
+    # ---- Listen ----
+    def open_listen(self):
+        self.push("Listen — pick a folder",
+                  [(c, lambda c=c: self.listen_category(c)) for c in library.categories(self.db)])
+
+    def listen_category(self, category):
+        rows = library.articles(self.db, category)
+        self.push(category, [(r["title"], lambda r=r: self.start_listen(r)) for r in rows])
+
+    def start_listen(self, row):
+        import audio
+        text = renderer.markdown_to_text(row["body"])
+        pages_lines, _ = renderer.paginate(text, self.font, self.display.width,
+                                           self.display.height, reserve_lines=4)
+        pages = [" ".join(l for l in pg if l).strip() or "(blank page)" for pg in pages_lines]
+        self.player = {"row": row, "n": len(pages), "idx": 0, "state": "Starting", "obj": None}
+
+        def on_update(i, state):
+            if self.player:
+                self.player["idx"], self.player["state"] = i, state
+                self._notify()
+
+        p = audio.Player(pages, on_update)
+        self.player["obj"] = p
+        p.start()
 
     def _layout(self):
         return f"{config.ROTATE}:{config.FONT_SIZE}:{self.display.width}x{self.display.height}"
@@ -250,6 +327,22 @@ class App:
                 self.recommend = None
                 if action == "home":
                     self.home()
+        elif self.player:               # Listen: tap skips pages, hold stops
+            p = self.player["obj"]
+            if action == "next":
+                p.skip(1)
+            elif action == "prev":
+                p.skip(-1)
+            elif action in ("back", "home"):
+                p.stop()
+                self.player = None
+                if action == "home":
+                    self.home()
+        elif self.bt:                   # BT status screen: back/home dismisses
+            if action in ("back", "home"):
+                self.bt = None
+                if action == "home":
+                    self.home()
         elif action == "sleep":
             self.asleep = True
         elif action == "home":
@@ -314,13 +407,25 @@ class App:
         self._slept = False
         if self.connect:
             ip = self.connect["ip"]
-            img = renderer.render_connect(ip, W, H, self.font)
+            hotspot = (config.HOTSPOT_SSID, config.HOTSPOT_PASS) if self.connect.get("hotspot") else None
+            img = renderer.render_connect(ip, W, H, self.font, hotspot=hotspot)
             url = f"http://{ip}:8000" if ip else "connect to wifi first"
             self.display.show(img, text=("Piwi Connect", ["Scan, or open:", url, "", "Back to stop."]))
         elif self.recommend:
             lines = [""] + self.recommend["lines"]
             img = renderer.render_page(lines, self.font, W, H, header="AI Recommend")
             self.display.show(img, text=("AI Recommend", self.recommend["lines"]))
+        elif self.player:
+            pl = self.player
+            lines = ["", pl["row"]["title"], "",
+                     f"{pl['state']}  —  page {pl['idx'] + 1} / {pl['n']}", "",
+                     "Tap: skip   Hold Left: stop"]
+            img = renderer.render_page(lines, self.font, W, H, header="Listen")
+            self.display.show(img, text=("Listen", lines[1:]))
+        elif self.bt:
+            lines = [""] + self.bt["lines"]
+            img = renderer.render_page(lines, self.font, W, H, header="Bluetooth")
+            self.display.show(img, text=("Bluetooth", self.bt["lines"]))
         elif self.reading:
             r = self.reading
             title, off = r["row"]["title"], r["off"]
@@ -378,6 +483,12 @@ def main():
         library._selftest()
         import ai_recommend
         ai_recommend._selftest()
+        import audio
+        audio._selftest()
+        import bt
+        bt._selftest()
+        import wifi
+        wifi._selftest()
         print("all selftests OK")
         return
 

@@ -168,6 +168,35 @@ Default models (cheapest small tier): Anthropic `claude-haiku-4-5`, OpenAI
 
 ---
 
+## Listen (text-to-speech)
+
+**Home → Listen → pick a folder → article.** Piper synthesizes the current page,
+plays it, and synthesizes the next page while that one plays — so playback starts
+after page 1 without converting the whole article up front. Tap Left/Right to skip
+pages, hold Left to stop. Audio goes to the default sink (a Bluetooth speaker once
+paired — see below). Uses a small `low`-quality voice; TTS on a Pi Zero is not
+instant, so expect a short "Converting" beat on the first page.
+
+Not disk-cached — each Listen re-synthesizes on demand (WAV is large on an SD card).
+
+## Bluetooth
+
+**Settings → Bluetooth** scans (~8 s) and lists nearby devices; select one to pair
++ trust + connect (via `bluetoothctl`). Connect a speaker/headphones here before
+using Listen. `emmett` must be in the `bluetooth` group.
+
+## Wi-Fi setup (via the setup hotspot)
+
+If the Pi is **offline** when you open **Piwi Connect**, it starts a setup hotspot.
+The Connect screen shows the network name + password and `http://10.42.0.1:8000`.
+Join that Wi-Fi from a phone, open the portal, and use the **Wi-Fi** section to pick
+your network and enter its password. The Pi joins it and the hotspot drops — then
+reach the reader on your normal Wi-Fi. Uses `nmcli` (NetworkManager); `emmett`
+needs permission to manage connections (the `netdev` group / polkit, default on
+Bookworm).
+
+---
+
 ## Directory layout
 
 ```
@@ -182,6 +211,10 @@ device/
     connect.py     Piwi Connect FastAPI web portal
     wiki_import.py Wikipedia -> Markdown importer (CLI + used by the portal)
     ai_recommend.py LLM suggestions (Anthropic/OpenAI/Grok, raw HTTPS)
+    audio.py       piper TTS, page-by-page player (Listen)
+    bt.py          Bluetooth pair/connect via bluetoothctl
+    wifi.py        Wi-Fi connect + setup hotspot via nmcli
+    voices/        piper voice model (downloaded by setup.sh, gitignored)
     web/index.html self-contained portal page
     battery.py     stub (needs a UPS HAT to report anything)
     db.sqlite      created on first run
@@ -282,8 +315,9 @@ launch's `Clear()` wipes it.
   browse, delete), Wikipedia→Markdown importer, on-device start/stop, wifi/clock
   status icon. (Portal is one HTML page, not a React app; hourly auto-sync not
   built — you add on demand.)
-- **Phase 4 — later.** EPUB/PDF import, collections/favourites, doc packs, better
-  typography.
+- **Phase 4 — in progress.** Listen (piper TTS), Bluetooth audio, Wi-Fi setup via
+  hotspot — **done, untested on hardware**. Still later: EPUB/PDF import,
+  collections/favourites, disk-cached audio, doc packs, better typography.
 
 Each phase is usable on its own; nothing built now gets thrown away.
 
@@ -310,6 +344,12 @@ Missing `spidev` or a blank panel → `pip install spidev` and enable SPI:
 - **Sleep sleeps the panel, not the Pi.** True weeks-long standby needs an
   RTC/PiSugar-style HAT to cut power and wake on a button. Marked in `main.py`.
 - **Battery is a stub** — the bare Pi can't measure it; needs a fuel-gauge HAT.
+- **Audio under systemd:** PipeWire runs in the user session, so a `User=emmett`
+  *system* service may have no audio sink. If Listen is silent under the service but
+  works when you run `python main.py` in your logged-in session, run Piwi as a
+  **user** service (`systemctl --user`) or set `XDG_RUNTIME_DIR=/run/user/$(id -u emmett)`
+  in the unit. Bluetooth/Wi-Fi likewise need `emmett` in the `bluetooth`/`netdev`
+  groups. These hardware paths are untested in this repo — verify on the device.
 - **Markdown renders to plain text** (bold/italic stripped, not styled). Fine for
   reading; add font-weight rendering only if you miss it.
 - **Big articles paginate in the background.** Opening shows page 0 instantly and

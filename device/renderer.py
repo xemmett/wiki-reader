@@ -109,8 +109,9 @@ def _qr_image(data):
     return qr.make_image(fill_color="black", back_color="white").convert("L")
 
 
-def render_connect(ip, W, H, font, margin=14):
-    """Piwi Connect screen: title, URL, and a QR code of the URL."""
+def render_connect(ip, W, H, font, margin=14, hotspot=None):
+    """Piwi Connect screen: title, URL, and a QR code of the URL. When `hotspot`
+    is (ssid, password), also show how to join the setup network."""
     img = Image.new("L", (W, H), 255)
     d = ImageDraw.Draw(img)
     a, de = font.getmetrics()
@@ -125,6 +126,11 @@ def render_connect(ip, W, H, font, margin=14):
             d.text((margin, y), t, font=font, fill=0)
             y += lh
         return img
+    if hotspot:
+        d.text((margin, y), f"Join Wi-Fi: {hotspot[0]}", font=font, fill=0)
+        y += lh
+        d.text((margin, y), f"Password: {hotspot[1]}", font=font, fill=0)
+        y += lh + 4
     url = f"http://{ip}:8000"
     d.text((margin, y), "Scan, or open:", font=font, fill=0)
     y += lh

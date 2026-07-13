@@ -20,6 +20,9 @@ library/**/*.png
 # AI settings written by Piwi Connect (contains the API key)
 device/ai.json
 
+# Piper voice models (large binaries, downloaded by setup.sh)
+device/voices/
+
 # OS
 .DS_Store
 Thumbs.db

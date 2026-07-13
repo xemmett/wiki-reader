@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 import ai_recommend
 import config
 import library
+import wifi
 import wiki_import
 
 app = FastAPI(title="Piwi Connect")
@@ -72,6 +73,18 @@ def api_ai():
 def api_ai_set(provider: str = Form(...), model: str = Form(""), key: str = Form("")):
     ai_recommend.save_settings(provider=provider, model=(model or None), key=(key or None))
     return {"ok": True}
+
+
+@app.get("/api/wifi")
+def api_wifi():
+    return {"online": wifi.online(), "networks": wifi.scan()}
+
+
+@app.post("/api/wifi")
+def api_wifi_set(ssid: str = Form(...), password: str = Form("")):
+    # On success the Pi joins the network and the setup hotspot drops — you'll be
+    # bounced off, then find the reader on your normal Wi-Fi.
+    return {"ok": wifi.connect(ssid, password)}
 
 
 if __name__ == "__main__":

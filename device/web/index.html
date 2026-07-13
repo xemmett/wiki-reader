@@ -50,6 +50,17 @@
   </section>
 
   <section>
+    <h2>Wi-Fi</h2>
+    <div id="wifistatus" class="sub"></div>
+    <div class="row">
+      <select id="ssid"></select>
+      <button onclick="scanWifi()">Rescan</button>
+    </div>
+    <input id="wifipass" type="password" placeholder="Wi-Fi password">
+    <button onclick="saveWifi()">Connect</button>
+  </section>
+
+  <section>
     <h2>AI Recommend settings</h2>
     <div id="aistatus" class="sub"></div>
     <select id="provider">
@@ -136,8 +147,38 @@ async function saveAI() {
   loadAI();
 }
 
+async function scanWifi() {
+  document.getElementById("wifistatus").textContent = "Scanning…";
+  const d = await (await fetch("/api/wifi")).json();
+  document.getElementById("wifistatus").textContent =
+    d.online ? "Online." : "Offline — connect to a network below.";
+  const sel = document.getElementById("ssid");
+  sel.innerHTML = "";
+  for (const s of d.networks) {
+    const o = document.createElement("option");
+    o.value = o.textContent = s;
+    sel.appendChild(o);
+  }
+}
+
+async function saveWifi() {
+  const body = new FormData();
+  body.append("ssid", document.getElementById("ssid").value);
+  body.append("password", document.getElementById("wifipass").value);
+  msg("Connecting to Wi-Fi… you may lose this page if it works.");
+  try {
+    const r = await fetch("/api/wifi", { method: "POST", body });
+    const d = await r.json();
+    msg(d.ok ? "Connected. Reconnect to your normal Wi-Fi to reach Piwi."
+             : "Wi-Fi connection failed — check the password.");
+  } catch (e) {
+    msg("Connecting… if the hotspot dropped, the Pi likely joined your Wi-Fi.");
+  }
+}
+
 load();
 loadAI();
+scanWifi();
 </script>
 </body>
 </html>
