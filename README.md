@@ -13,10 +13,11 @@ panel and buttons arrive, you change one flag.
 
 ## Status
 
-**Phase 1 + 2 are built** (see roadmap). The device runs end to end: library
-scan, menus, Markdown reading, pagination, read-position persistence, two-button
-control, three display drivers. Phase 3+ (backend, web portal, importers) is
-scoped but not built — it's a separate service, not device code.
+**Phase 1–3 are built** (see roadmap). The device runs end to end: library scan,
+menus, Markdown reading, pagination, read-position persistence, two-button
+control, three display drivers, a wifi/clock status indicator, and **Piwi
+Connect** — an on-device toggle that starts a FastAPI web portal for adding
+articles over wifi. Phase 4 (EPUB/PDF, collections) is scoped but not built.
 
 ---
 
@@ -98,7 +99,33 @@ Home                 Library            (category)         Reading
 ```
 
 Tap to move the arrow, hold-Right to open, hold-Left to go back, hold-both for
-Home. No status bars. Just text.
+Home. Menu screens show a wifi icon + clock top-right; reading stays clean text.
+
+---
+
+## Piwi Connect — add articles over wifi
+
+On the device: **Settings → Piwi Connect**. It starts a small web portal and
+shows the Pi's address, e.g. `http://192.168.1.42:8000`. Open that on any phone or
+laptop on the same wifi to:
+
+- add a Wikipedia article by title or URL (fetched, converted to Markdown),
+- upload a `.md` file,
+- browse and delete the library.
+
+Anything added shows up on the device next time you open the Library (no restart —
+the DB uses WAL so the portal and reader share it). Press **Back** on the device to
+stop the server.
+
+Needs `fastapi uvicorn python-multipart` (installed by `setup.sh`). You can also
+import straight from the Pi's shell without the portal:
+
+```bash
+python wiki_import.py "Apollo 11" --category science
+```
+
+The portal is a single self-contained HTML page (`device/web/index.html`) served
+by `device/connect.py` — no React build step.
 
 ---
 
@@ -110,8 +137,12 @@ device/
     config.py      pins, paths, panel size, timings (all env-overridable)
     display.py     drivers: console / mock / waveshare
     buttons.py     two-button gesture recognizer + GPIO/keyboard input
-    renderer.py    Markdown->text, wrapping, pagination, page/menu images
+    renderer.py    Markdown->text, wrapping, pagination, page/menu images, wifi icon
     library.py     SQLite library: import, queries, read position
+    net.py         local IP + connectivity (status icon, Piwi Connect)
+    connect.py     Piwi Connect FastAPI web portal
+    wiki_import.py Wikipedia -> Markdown importer (CLI + used by the portal)
+    web/index.html self-contained portal page
     battery.py     stub (needs a UPS HAT to report anything)
     db.sqlite      created on first run
 library/
@@ -196,7 +227,7 @@ launch's `Clear()` wipes it.
 | `EPD_ROTATE` | `0` | `0`/`180` landscape, `90`/`270` portrait (flip if upside down) |
 | `FONT_SIZE` | `18` | bigger = more readable, fewer lines |
 | `FONT` | auto | path to a `.ttf` |
-| `LEFT_PIN` / `RIGHT_PIN` | `5` / `6` | button BCM pins (keep off the panel's pins) |
+| `LEFT_PIN` / `RIGHT_PIN` | `5` / `13` | button BCM pins (keep off the panel's pins) |
 | `HOLD_TIME` | `0.5` | tap→hold threshold (seconds) |
 | `EPD_FULL_EVERY` | `8` | full (de-ghost) refresh every Nth update; `0` = never (no self-refresh flash) |
 | `LIBRARY_DIR` / `DB_PATH` | repo paths | content + database location |
@@ -207,8 +238,10 @@ launch's `Clear()` wipes it.
 
 - **Phase 1 — DONE.** Plain-text article rendering, two buttons, manual file copy.
 - **Phase 2 — DONE.** Markdown, SQLite library, read-position persistence, sleep.
-- **Phase 3 — next.** FastAPI backend + React portal: upload/import, Wikipedia
-  downloader (HTML→Markdown), Wi-Fi sync (`GET /sync` hourly). Separate service.
+- **Phase 3 — DONE.** Piwi Connect: FastAPI portal (add-by-URL/title, upload,
+  browse, delete), Wikipedia→Markdown importer, on-device start/stop, wifi/clock
+  status icon. (Portal is one HTML page, not a React app; hourly auto-sync not
+  built — you add on demand.)
 - **Phase 4 — later.** EPUB/PDF import, collections/favourites, doc packs, better
   typography.
 
@@ -239,6 +272,10 @@ Missing `spidev` or a blank panel → `pip install spidev` and enable SPI:
 - **Battery is a stub** — the bare Pi can't measure it; needs a fuel-gauge HAT.
 - **Markdown renders to plain text** (bold/italic stripped, not styled). Fine for
   reading; add font-weight rendering only if you miss it.
+- **Big articles paginate in the background.** Opening shows page 0 instantly and
+  keeps wrapping the rest in a thread (`Page 4 / 12+` — the `+` means still
+  loading). Resuming deep into a long article shows "Loading page N…" while it
+  races there, since pagination is sequential. Page count settles when done.
 - **Refresh:** page turns use partial refresh (fast, no flash); a full refresh
   every `EPD_FULL_EVERY` (default 8) updates clears ghosting. Lower it if ghosting
   bugs you, raise it for fewer flashes.

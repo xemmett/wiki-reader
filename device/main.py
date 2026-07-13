@@ -19,6 +19,7 @@ except Exception:
     pass
 
 import os
+import threading
 import time as _time
 
 import config
@@ -35,10 +36,12 @@ class App:
         self.display = display
         self.font = renderer.load_font()
         self.stack = []        # menu screens: {title, items:[(label, thunk)], sel}
-        self.reading = None    # {row, pages, page, line_h}
+        self.reading = None    # {row, pages, page, line_h, target, done, cancel}
         self.connect = None    # {proc, ip} while Piwi Connect is running
         self.asleep = False
         self._slept = False    # panel put to sleep for the current sleep screen
+        self._lock = threading.Lock()
+        self.notify = None     # set by the device loop to request a redraw from threads
         self.home()
 
     # ---- screens ----
@@ -97,11 +100,37 @@ class App:
             self.connect = None
 
     def open_article(self, row):
+        if self.reading:
+            self.reading["cancel"] = True          # stop any in-flight pagination
         text = renderer.markdown_to_text(row["body"])
-        pages, line_h = renderer.paginate(text, self.font, self.display.width,
-                                          self.display.height, reserve_lines=4)
-        start = min(row["read_position"] or 0, len(pages) - 1)
-        self.reading = {"row": row, "pages": pages, "page": start, "line_h": line_h}
+        r = {"row": row, "pages": [], "page": 0, "line_h": None,
+             "target": row["read_position"] or 0, "done": False, "cancel": False}
+        self.reading = r
+        if self.notify:                            # device: paginate in background
+            threading.Thread(target=self._paginate_bg, args=(r, text), daemon=True).start()
+        else:                                      # mock/dev: paginate synchronously
+            for lines, lh in renderer.paginate_iter(text, self.font, self.display.width,
+                                                    self.display.height, reserve_lines=4):
+                r["pages"].append(lines)
+                r["line_h"] = lh
+            r["done"] = True
+            r["page"] = min(r["target"], max(len(r["pages"]) - 1, 0))
+
+    def _paginate_bg(self, r, text):
+        W, H = self.display.width, self.display.height
+        for lines, lh in renderer.paginate_iter(text, self.font, W, H, reserve_lines=4):
+            if r["cancel"]:
+                return
+            with self._lock:
+                r["pages"].append(lines)
+                r["line_h"] = lh
+                n = len(r["pages"])
+            if n - 1 == r["target"]:               # reached the page they want -> show it
+                r["page"] = r["target"]
+                self.notify("_render")
+        r["done"] = True
+        if not r["cancel"]:
+            self.notify("_render")                 # final count / "+" drops off
 
     # ---- input ----
     def handle(self, action):
@@ -115,6 +144,8 @@ class App:
         several rows with a single e-ink refresh instead of one refresh each."""
         if action == "quit":
             self.quit()
+        elif action == "_render":       # background pagination asked for a redraw
+            return
         elif self.asleep:               # any press wakes
             self.asleep = False
             self.display.wake()
@@ -134,12 +165,14 @@ class App:
 
     def _reading_action(self, action):
         r = self.reading
-        last = len(r["pages"]) - 1
+        with self._lock:
+            last = max(len(r["pages"]) - 1, 0)     # grows as pagination fills in
         if action in ("next", "open"):
             r["page"] = min(r["page"] + 1, last)
         elif action == "prev":
             r["page"] = max(r["page"] - 1, 0)
         elif action == "back":
+            r["cancel"] = True                     # stop background pagination
             self.reading = None
             return
         library.set_position(self.db, r["row"]["id"], r["page"])
@@ -181,11 +214,23 @@ class App:
             self.display.show(img, text=("Piwi Connect", lines))
         elif self.reading:
             r = self.reading
-            info = f"Page {r['page'] + 1} / {len(r['pages'])}"
-            lines = [info, ""] + r["pages"][r["page"]]
-            img = renderer.render_page(lines, self.font, W, H,
-                                       line_h=r["line_h"], header=r["row"]["title"])
-            self.display.show(img, text=(r["row"]["title"], lines))
+            title = r["row"]["title"]
+            with self._lock:
+                npages = len(r["pages"])
+                ready = npages > r["target"]
+                if ready:
+                    r["page"] = min(r["page"], npages - 1)
+                    page_lines, line_h, pg = r["pages"][r["page"]], r["line_h"], r["page"]
+            if not ready:                          # still racing to the resume page
+                lines = ["", f"Loading page {r['target'] + 1}…"]
+                img = renderer.render_page(lines, self.font, W, H, header=title)
+                self.display.show(img, text=(title, lines))
+            else:
+                info = f"Page {pg + 1} / {npages}{'' if r['done'] else '+'}"
+                lines = [info, ""] + page_lines
+                img = renderer.render_page(lines, self.font, W, H,
+                                           line_h=line_h, header=title)
+                self.display.show(img, text=(title, lines))
         else:
             scr = self.stack[-1]
             status = (net.connected(), _time.strftime("%H:%M"))
@@ -237,8 +282,8 @@ def main():
         # (slow, blocking) e-ink refresh. The main loop drains all queued clicks
         # and renders once — rapid clicks jump several rows per refresh.
         import queue
-        import threading
         q = queue.Queue()
+        app.notify = q.put                 # let background pagination request redraws
         threading.Thread(target=get_input().run, args=(q.put,), daemon=True).start()
         while True:
             batch = [q.get()]         # block for the first

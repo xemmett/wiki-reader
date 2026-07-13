@@ -51,15 +51,32 @@ def wrap_line(text, font, max_w):
     return lines  # ponytail: one word wider than the panel overflows; fine for a reader
 
 
-def paginate(text, font, width, height, margin=14, line_gap=6, reserve_lines=0):
+def paginate_iter(text, font, width, height, margin=14, line_gap=6, reserve_lines=0):
+    """Yield (page_lines, line_h) one page at a time — cheap to start, so a caller
+    can show page 0 immediately and keep paginating a big article in the background."""
     max_w = width - 2 * margin
     ascent, descent = font.getmetrics()
     line_h = ascent + descent + line_gap
     per_page = max(1, (height - 2 * margin) // line_h - reserve_lines)
-    wrapped = []
+    buf = []
     for para in text.split("\n"):
-        wrapped.extend(wrap_line(para, font, max_w) if para.strip() else [""])
-    pages = [wrapped[i:i + per_page] for i in range(0, len(wrapped), per_page)]
+        for ln in (wrap_line(para, font, max_w) if para.strip() else [""]):
+            buf.append(ln)
+            if len(buf) >= per_page:
+                yield buf, line_h
+                buf = []
+    if buf:
+        yield buf, line_h
+
+
+def paginate(text, font, width, height, margin=14, line_gap=6, reserve_lines=0):
+    pages, line_h = [], None
+    for lines, lh in paginate_iter(text, font, width, height, margin, line_gap, reserve_lines):
+        pages.append(lines)
+        line_h = lh
+    if line_h is None:
+        a, de = font.getmetrics()
+        line_h = a + de + line_gap
     return (pages or [[""]]), line_h
 
 

@@ -8,6 +8,8 @@ venv/
 # App
 device/db.sqlite
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
 
 # Vendored Waveshare driver (GPL, copied from their repo per-device)
 device/waveshare_epd/
