@@ -41,6 +41,7 @@ class App:
         self.stack = []        # menu screens: {title, items:[(label, thunk)], sel}
         self.reading = None    # {row, pages, page, line_h, target, done, cancel}
         self.connect = None    # {proc, ip} while Piwi Connect is running
+        self.recommend = None  # {lines, done, cancel} while AI Recommend runs
         self.asleep = False
         self._slept = False    # panel put to sleep for the current sleep screen
         self._lock = threading.Lock()
@@ -54,6 +55,7 @@ class App:
             ("Continue Reading", self.open_continue),
             ("Recent", self.open_recent),
             ("Random", self.open_random),
+            ("AI Recommend", self.open_ai_recommend),
             ("Settings", self.open_settings),
         ]
         self.stack = [{"title": "Piwi", "items": items, "sel": 0}]
@@ -83,6 +85,58 @@ class App:
         row = library.random_article(self.db)
         if row:
             self.open_article(row)
+
+    def open_ai_recommend(self):
+        cats = ["All"] + library.categories(self.db)
+        self.push("AI Recommend — pick a folder",
+                  [(c, lambda c=c: self.run_recommend(c)) for c in cats])
+
+    def run_recommend(self, category):
+        r = {"category": category, "lines": ["Asking AI for ideas…"],
+             "done": False, "cancel": False}
+        self.recommend = r
+        threading.Thread(target=self._recommend_bg, args=(r,), daemon=True).start()
+
+    def _notify(self):
+        if self.notify:
+            self.notify("_render")
+
+    def _recommend_bg(self, r):
+        import ai_recommend
+        import wiki_import
+        db = library.connect()
+        try:
+            have = [row["title"] for row in library.all_articles(db)]
+            titles = ai_recommend.suggest(r["category"], have)
+        except Exception as e:
+            r["lines"] = ["AI error:", str(e)[:80], "", "Back to return."]
+            r["done"] = True
+            self._notify()
+            return
+        target = r["category"] if r["category"].lower() != "all" else "recommended"
+        have = {t.lower() for t in have}
+        added = 0
+        r["lines"] = [f"Got {len(titles)} ideas. Downloading…"]
+        self._notify()
+        for t in titles:
+            if r["cancel"]:
+                return
+            try:
+                title, extract = wiki_import.fetch(t)
+            except Exception:
+                continue                      # skip titles Wikipedia can't resolve
+            if title.lower() in have:
+                continue                      # drop duplicates
+            have.add(title.lower())
+            wiki_import.save(target, title, wiki_import.to_markdown(title, extract))
+            wiki_import.save_image(target, title)
+            added += 1
+            r["lines"] = [f"Added {added}…", title[:40]]
+            self._notify()
+        library.import_dir(db)
+        r["lines"] = [f"Done — added {added} articles", f"to '{target}'.", "", "Back to return."]
+        r["done"] = True
+        self._notify()
 
     def open_settings(self):
         import battery
@@ -181,6 +235,12 @@ class App:
                 self.stop_connect()
                 if action == "home":
                     self.home()
+        elif self.recommend:            # AI Recommend screen: back/home cancels + exits
+            if action in ("back", "home"):
+                self.recommend["cancel"] = True
+                self.recommend = None
+                if action == "home":
+                    self.home()
         elif action == "sleep":
             self.asleep = True
         elif action == "home":
@@ -248,6 +308,10 @@ class App:
             img = renderer.render_connect(ip, W, H, self.font)
             url = f"http://{ip}:8000" if ip else "connect to wifi first"
             self.display.show(img, text=("Piwi Connect", ["Scan, or open:", url, "", "Back to stop."]))
+        elif self.recommend:
+            lines = [""] + self.recommend["lines"]
+            img = renderer.render_page(lines, self.font, W, H, header="AI Recommend")
+            self.display.show(img, text=("AI Recommend", self.recommend["lines"]))
         elif self.reading:
             r = self.reading
             title, off = r["row"]["title"], r["off"]
@@ -303,6 +367,8 @@ def main():
         import buttons
         buttons._selftest()
         library._selftest()
+        import ai_recommend
+        ai_recommend._selftest()
         print("all selftests OK")
         return
 

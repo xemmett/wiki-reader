@@ -137,6 +137,33 @@ by `device/connect.py` — no React build step.
 
 ---
 
+## AI Recommend — auto-fill your library
+
+**Home → AI Recommend → pick a folder** (`All`, or one category). Piwi samples up to
+10 titles already in that folder, asks a cheap LLM for ~10 related Wikipedia
+articles you don't have, drops duplicates, and downloads them (into the chosen
+category, or a `recommended` folder for `All`). Progress shows on screen; **Back**
+cancels.
+
+**Set the provider + API key from Piwi Connect** (Settings → Piwi Connect → open the
+portal → *AI Recommend settings*). It's saved to `device/ai.json` (gitignored); the
+key is write-only over the API and never sent back to the browser. Leave the key
+field blank to change provider/model without re-entering it.
+
+Env vars are the fallback if you'd rather not use the portal (`ai.json` overrides
+them):
+
+| Var | Default | Meaning |
+|-----|---------|---------|
+| `PIWI_AI_PROVIDER` | `anthropic` | `anthropic` / `openai` / `grok` |
+| `PIWI_AI_KEY` | — | your API key for that provider |
+| `PIWI_AI_MODEL` | cheapest small per provider | override the model |
+
+Default models (cheapest small tier): Anthropic `claude-haiku-4-5`, OpenAI
+`gpt-4o-mini`, Grok `grok-3-mini`. No extra Python packages — the call is plain HTTPS.
+
+---
+
 ## Directory layout
 
 ```
@@ -150,6 +177,7 @@ device/
     net.py         local IP + connectivity (status icon, Piwi Connect)
     connect.py     Piwi Connect FastAPI web portal
     wiki_import.py Wikipedia -> Markdown importer (CLI + used by the portal)
+    ai_recommend.py LLM suggestions (Anthropic/OpenAI/Grok, raw HTTPS)
     web/index.html self-contained portal page
     battery.py     stub (needs a UPS HAT to report anything)
     db.sqlite      created on first run

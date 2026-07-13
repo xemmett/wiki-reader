@@ -12,6 +12,7 @@ import os
 from fastapi import FastAPI, UploadFile, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 
+import ai_recommend
 import config
 import library
 import wiki_import
@@ -60,6 +61,17 @@ async def api_upload(file: UploadFile, category: str = Form("uploads")):
 def api_delete(article_id: int):
     library.delete(library.connect(), article_id)
     return JSONResponse({"ok": True})
+
+
+@app.get("/api/ai")
+def api_ai():
+    return ai_recommend.settings_public()          # never includes the key
+
+
+@app.post("/api/ai")
+def api_ai_set(provider: str = Form(...), model: str = Form(""), key: str = Form("")):
+    ai_recommend.save_settings(provider=provider, model=(model or None), key=(key or None))
+    return {"ok": True}
 
 
 if __name__ == "__main__":

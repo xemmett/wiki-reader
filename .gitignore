@@ -17,6 +17,9 @@ device/waveshare_epd/
 # Downloaded cover images (regenerated on import)
 library/**/*.png
 
+# AI settings written by Piwi Connect (contains the API key)
+device/ai.json
+
 # OS
 .DS_Store
 Thumbs.db

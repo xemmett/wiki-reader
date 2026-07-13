@@ -31,6 +31,14 @@ HOLD_TIME = float(os.environ.get("HOLD_TIME", 0.5))
 POLL = float(os.environ.get("POLL", 0.02))           # button poll interval (s)
 
 DRIVER = os.environ.get("DISPLAY_DRIVER", "mock")     # mock | console | waveshare
+
+# AI Recommend: pick a provider + supply an API key via env. Model defaults to the
+# cheapest small model for the provider; override with PIWI_AI_MODEL.
+AI_PROVIDER = os.environ.get("PIWI_AI_PROVIDER", "anthropic")  # anthropic | openai | grok
+AI_MODEL = os.environ.get("PIWI_AI_MODEL")                     # optional override
+AI_KEY = os.environ.get("PIWI_AI_KEY")                         # API key (env fallback)
+# Piwi Connect writes provider/model/key here; it overrides the env values above.
+AI_CONFIG_PATH = os.environ.get("PIWI_AI_CONFIG", os.path.join(BASE, "ai.json"))
 # E-ink: partial refresh (no flash) between full refreshes. Full every Nth update
 # clears ghosting. 0 = never (all partial after the first frame, no self-refresh
 # flash, but ghosting can build up). Lower = cleaner; higher/0 = fewer flashes.

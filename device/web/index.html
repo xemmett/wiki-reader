@@ -50,6 +50,19 @@
   </section>
 
   <section>
+    <h2>AI Recommend settings</h2>
+    <div id="aistatus" class="sub"></div>
+    <select id="provider">
+      <option value="anthropic">Anthropic (claude-haiku-4-5)</option>
+      <option value="openai">OpenAI (gpt-4o-mini)</option>
+      <option value="grok">Grok (grok-3-mini)</option>
+    </select>
+    <input id="aimodel" placeholder="model (optional override)">
+    <input id="aikey" type="password" placeholder="API key (leave blank to keep current)">
+    <button onclick="saveAI()">Save AI settings</button>
+  </section>
+
+  <section>
     <h2>Library</h2>
     <ul id="lib"></ul>
   </section>
@@ -104,7 +117,27 @@ async function del(id) {
   load();
 }
 
+async function loadAI() {
+  const d = await (await fetch("/api/ai")).json();
+  document.getElementById("provider").value = d.provider;
+  document.getElementById("aimodel").value = d.model || "";
+  document.getElementById("aistatus").textContent =
+    d.has_key ? "API key is set." : "No API key set yet.";
+}
+
+async function saveAI() {
+  const body = new FormData();
+  body.append("provider", document.getElementById("provider").value);
+  body.append("model", document.getElementById("aimodel").value.trim());
+  body.append("key", document.getElementById("aikey").value);
+  const r = await fetch("/api/ai", { method: "POST", body });
+  msg(r.ok ? "AI settings saved." : "Failed to save AI settings.");
+  document.getElementById("aikey").value = "";
+  loadAI();
+}
+
 load();
+loadAI();
 </script>
 </body>
 </html>
