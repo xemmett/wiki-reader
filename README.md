@@ -113,6 +113,13 @@ laptop on the same wifi to:
 - upload a `.md` file,
 - browse and delete the library.
 
+Each imported article also grabs its **lead image** (saved as `<slug>.png` next to
+the `.md`). It shows as a cover photo on the article's first page, and the sleep
+screen becomes a **photo frame** cycling a random cover. Images fit cover-style
+(fill + crop) unless that would trim more than 20%, in which case they're shown
+whole (letterboxed on the long edge). Drop your own `<slug>.png` next to any `.md`
+to give it a cover.
+
 Anything added shows up on the device next time you open the Library (no restart —
 the DB uses WAL so the portal and reader share it). Press **Back** on the device to
 stop the server.

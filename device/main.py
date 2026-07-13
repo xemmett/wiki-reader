@@ -19,8 +19,11 @@ except Exception:
     pass
 
 import os
+import random
 import threading
 import time as _time
+
+from PIL import Image
 
 import config
 import library
@@ -102,14 +105,26 @@ class App:
     def _layout(self):
         return f"{config.ROTATE}:{config.FONT_SIZE}:{self.display.width}x{self.display.height}"
 
+    def _cover_image(self, row):
+        p = library.image_file(row["category"], row["title"])
+        if os.path.exists(p):
+            try:
+                return renderer.fit_image(Image.open(p), self.display.width, self.display.height)
+            except Exception:
+                pass
+        return None
+
     def open_article(self, row):
         if self.reading:
             self.reading["cancel"] = True          # stop any in-flight pagination
         text = renderer.markdown_to_text(row["body"])
-        total = library.cached_pages(self.db, row["id"], self._layout())
-        r = {"row": row, "pages": [], "page": 0, "line_h": None,
+        cover = self._cover_image(row)
+        off = 1 if cover else 0                    # cover occupies view page 0
+        cached = library.cached_pages(self.db, row["id"], self._layout())
+        total = (cached + off) if cached else None
+        r = {"row": row, "pages": [], "page": row["read_position"] or 0, "line_h": None,
              "target": row["read_position"] or 0, "total": total,
-             "done": False, "cancel": False}
+             "cover": cover, "off": off, "done": False, "cancel": False}
         self.reading = r
         if self.notify:                            # device: paginate in background
             threading.Thread(target=self._paginate_bg, args=(r, text), daemon=True).start()
@@ -118,12 +133,13 @@ class App:
                                                     self.display.height, reserve_lines=4):
                 r["pages"].append(lines)
                 r["line_h"] = lh
-            r["done"], r["total"] = True, len(r["pages"])
-            r["page"] = min(r["target"], max(len(r["pages"]) - 1, 0))
-            library.set_pages(self.db, row["id"], self._layout(), r["total"])
+            r["done"], r["total"] = True, len(r["pages"]) + off
+            r["page"] = min(r["target"], max(len(r["pages"]) - 1 + off, 0))
+            library.set_pages(self.db, row["id"], self._layout(), len(r["pages"]))
 
     def _paginate_bg(self, r, text):
         W, H = self.display.width, self.display.height
+        text_target = r["target"] - r["off"]       # target as a text-page index
         for lines, lh in renderer.paginate_iter(text, self.font, W, H, reserve_lines=4):
             if r["cancel"]:
                 return
@@ -131,14 +147,15 @@ class App:
                 r["pages"].append(lines)
                 r["line_h"] = lh
                 n = len(r["pages"])
-            if n - 1 == r["target"]:               # reached the page they want -> show it
+            if n - 1 == text_target:               # reached the page they want -> show it
                 r["page"] = r["target"]
                 self.notify("_render")
         r["done"] = True
         with self._lock:
-            r["total"] = len(r["pages"])
-        # cache the total for this layout (own connection — different thread)
-        library.set_pages(library.connect(), r["row"]["id"], self._layout(), r["total"])
+            r["total"] = len(r["pages"]) + r["off"]
+            text_count = len(r["pages"])
+        # cache the text page count for this layout (own connection — different thread)
+        library.set_pages(library.connect(), r["row"]["id"], self._layout(), text_count)
         if not r["cancel"]:
             self.notify("_render")
 
@@ -176,7 +193,9 @@ class App:
     def _reading_action(self, action):
         r = self.reading
         with self._lock:
-            last = max(len(r["pages"]) - 1, 0)     # grows as pagination fills in
+            nt = len(r["pages"])
+        last = (nt - 1 + r["off"]) if nt else (r["off"] - 1)   # last view index so far
+        last = max(last, 0)
         if action in ("next", "open"):
             r["page"] = min(r["page"] + 1, last)
         elif action == "prev":
@@ -206,9 +225,19 @@ class App:
     def render(self):
         W, H = self.display.width, self.display.height
         if self.asleep:
-            img = renderer.render_page(["", "Sleeping.", "Press any button to wake."],
-                                       self.font, W, H, header="Piwi")
-            self.display.show(img, text=("Piwi", ["", "Sleeping — press to wake."]))
+            pics = library.all_images()
+            shown = False
+            if pics:                     # photo-frame screensaver: a random cover
+                try:
+                    pic = renderer.fit_image(Image.open(random.choice(pics)), W, H)
+                    self.display.show(pic, text=("(screensaver)", []))
+                    shown = True
+                except Exception:
+                    pass
+            if not shown:
+                img = renderer.render_page(["", "Sleeping.", "Press any button to wake."],
+                                           self.font, W, H, header="Piwi")
+                self.display.show(img, text=("Piwi", ["", "Sleeping — press to wake."]))
             if not self._slept:          # sleep the panel once, after drawing
                 self.display.sleep()
                 self._slept = True
@@ -224,21 +253,24 @@ class App:
             self.display.show(img, text=("Piwi Connect", lines))
         elif self.reading:
             r = self.reading
-            title = r["row"]["title"]
+            title, off = r["row"]["title"], r["off"]
+            if off and r["page"] == 0:             # cover photo page
+                self.display.show(r["cover"], text=(title, ["(cover image)"]))
+                return
+            ti = r["page"] - off                   # text-page index
             with self._lock:
-                npages = len(r["pages"])
+                nt = len(r["pages"])
                 total = r["total"]
-                ready = npages > r["target"]
+                ready = 0 <= ti < nt
                 if ready:
-                    r["page"] = min(r["page"], npages - 1)
-                    page_lines, line_h, pg = r["pages"][r["page"]], r["line_h"], r["page"]
+                    page_lines, line_h = r["pages"][ti], r["line_h"]
             if not ready:                          # still racing to the resume page
-                lines = ["", f"Loading page {r['target'] + 1}…"]
+                lines = ["", f"Loading page {r['page'] + 1}…"]
                 img = renderer.render_page(lines, self.font, W, H, header=title)
                 self.display.show(img, text=(title, lines))
             else:
                 # cached total -> "Page 5 / 270"; unknown yet -> just "Page 5"
-                info = f"Page {pg + 1} / {total}" if total else f"Page {pg + 1}"
+                info = f"Page {r['page'] + 1} / {total}" if total else f"Page {r['page'] + 1}"
                 lines = [info, ""] + page_lines
                 img = renderer.render_page(lines, self.font, W, H,
                                            line_h=line_h, header=title)

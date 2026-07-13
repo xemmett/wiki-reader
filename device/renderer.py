@@ -98,6 +98,24 @@ def render_page(lines, font, width, height, margin=14, line_h=None, header=None)
     return img
 
 
+def fit_image(img, W, H, trim_max=0.20):
+    """Photo-frame fit to a W×H panel (grayscale). Cover (fill, crop) if <= trim_max
+    of the image would be cropped; otherwise contain (whole photo, letterboxed)."""
+    img = img.convert("L")
+    iw, ih = img.size
+    if iw == 0 or ih == 0:
+        return Image.new("L", (W, H), 255)
+    cover = max(W / iw, H / ih)
+    scaled_area = (iw * cover) * (ih * cover)
+    trimmed = 1 - (W * H) / scaled_area if scaled_area else 1.0
+    scale = cover if trimmed <= trim_max else min(W / iw, H / ih)
+    nw, nh = max(1, round(iw * scale)), max(1, round(ih * scale))
+    resized = img.resize((nw, nh))
+    canvas = Image.new("L", (W, H), 255)
+    canvas.paste(resized, ((W - nw) // 2, (H - nh) // 2))   # negative offsets clip (cover)
+    return canvas
+
+
 def draw_wifi(d, x, y, on=True):
     """Small wifi glyph (~16 wide) at top-left corner (x, y)."""
     cx, base = x + 8, y + 13

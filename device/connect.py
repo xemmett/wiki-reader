@@ -40,6 +40,7 @@ def api_import(article: str = Form(...), category: str = Form("wikipedia"),
     except SystemExit as e:
         raise HTTPException(404, str(e))
     wiki_import.save(category, title, wiki_import.to_markdown(title, extract))
+    wiki_import.save_image(category, title, lang)
     library.import_dir(library.connect())
     return {"ok": True, "title": title}
 

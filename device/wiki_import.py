@@ -54,17 +54,44 @@ def to_markdown(title, extract):
     return "\n".join(out)
 
 
-def slugify(title):
-    return re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_") or "article"
-
-
 def save(category, title, md):
     d = os.path.join(config.LIBRARY_DIR, category)
     os.makedirs(d, exist_ok=True)
-    path = os.path.join(d, slugify(title) + ".md")
+    path = os.path.join(d, library.slugify(title) + ".md")
     with open(path, "w", encoding="utf-8") as f:
         f.write(md)
     return path
+
+
+def image_url(title, lang="en"):
+    params = {"action": "query", "prop": "pageimages", "piprop": "thumbnail",
+              "pithumbsize": 1000, "redirects": 1, "format": "json", "titles": title}
+    url = f"https://{lang}.wikipedia.org/w/api.php?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        page = next(iter(json.load(r)["query"]["pages"].values()))
+    thumb = page.get("thumbnail")
+    return thumb["source"] if thumb else None
+
+
+def save_image(category, title, lang="en"):
+    """Download the article's lead image as grayscale <slug>.png. Best-effort."""
+    try:
+        url = image_url(title, lang)
+        if not url:
+            return None
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = r.read()
+        import io
+        from PIL import Image
+        im = Image.open(io.BytesIO(data)).convert("L")
+        im.thumbnail((1000, 1000))
+        path = library.image_file(category, title)
+        im.save(path)
+        return path
+    except Exception:
+        return None    # image is optional; never block the import on it
 
 
 def main():
@@ -76,6 +103,7 @@ def main():
 
     title, extract = fetch(title_from_arg(args.article), args.lang)
     path = save(args.category, title, to_markdown(title, extract))
+    save_image(args.category, title, args.lang)  # best-effort cover image
     db = library.connect()
     library.import_dir(db)                       # rescan; upsert keeps read positions
     print(f"Saved '{title}' -> {path} and imported into the library.")

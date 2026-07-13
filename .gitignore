@@ -14,6 +14,9 @@ device/db.sqlite
 # Vendored Waveshare driver (GPL, copied from their repo per-device)
 device/waveshare_epd/
 
+# Downloaded cover images (regenerated on import)
+library/**/*.png
+
 # OS
 .DS_Store
 Thumbs.db

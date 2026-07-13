@@ -2,10 +2,31 @@
 read position. Re-importing keeps your read positions (upsert on category+title).
 """
 import os
+import re
 import sqlite3
 import time
 
 import config
+
+
+def slugify(title):
+    return re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_") or "article"
+
+
+def image_file(category, title):
+    """Where an article's cover image lives (next to its .md), if any."""
+    return os.path.join(config.LIBRARY_DIR, category, slugify(title) + ".png")
+
+
+def all_images():
+    root = config.LIBRARY_DIR
+    out = []
+    if os.path.isdir(root):
+        for cat in os.listdir(root):
+            d = os.path.join(root, cat)
+            if os.path.isdir(d):
+                out += [os.path.join(d, fn) for fn in os.listdir(d) if fn.endswith(".png")]
+    return out
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS articles (
