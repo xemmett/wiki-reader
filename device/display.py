@@ -92,18 +92,19 @@ class WaveshareDisplay(Display):
         self.epd.Clear()
         self.width = self.epd.width    # driver reports the true panel size
         self.height = self.epd.height
-        self._count = 0                # updates since last full refresh
-        self._partial = hasattr(self.epd, "display_Partial")
+        self._fast = (config.REFRESH == "fast"
+                      and hasattr(self.epd, "display_Fast")
+                      and hasattr(self.epd, "init_fast"))
+        if self._fast:
+            self._fast_mode = getattr(self.epd, config.FAST_MODE, 0)
+            self.epd.init_fast(self._fast_mode)   # load the fast LUT once
 
     def show(self, image, text=None):
         buf = self.epd.getbuffer(image.convert("1"))
-        # Full refresh on the first frame and every FULL_EVERY-th update (clears
-        # ghosting); partial refresh in between (fast, no flashing).
-        if not self._partial or self._count % config.FULL_EVERY == 0:
-            self.epd.display(buf)
+        if self._fast:
+            self.epd.display_Fast(buf)   # quick, low-flash, no scramble
         else:
-            self.epd.display_Partial(buf)
-        self._count += 1
+            self.epd.display(buf)        # slow full refresh
 
     def sleep(self):
         try:
@@ -113,7 +114,9 @@ class WaveshareDisplay(Display):
 
     def wake(self):
         self.epd.init()
-        self._count = 0  # force a clean full refresh after waking
+        self.epd.Clear()
+        if self._fast:
+            self.epd.init_fast(self._fast_mode)
 
     def close(self):
         self.sleep()

@@ -17,14 +17,17 @@ FONT = os.environ.get("FONT")  # path to a .ttf, else auto-detected
 
 # Two buttons. Left = prev/back, Right = next/open.
 # AVOID the panel's pins: 17(RST) 18(PWR) 24(BUSY) 25(DC) 8(CS) + SPI 9/10/11.
-# GPIO5 (header pin 29) and GPIO6 (pin 31) are free; wire each to a GND pin.
+# GPIO5 (header pin 29) and GPIO13 (pin 33) are free; wire each to a GND pin.
 LEFT_PIN = int(os.environ.get("LEFT_PIN", 5))
 RIGHT_PIN = int(os.environ.get("RIGHT_PIN", 13))
 HOLD_TIME = float(os.environ.get("HOLD_TIME", 0.6))  # press >= this = "hold"
 POLL = float(os.environ.get("POLL", 0.02))           # button poll interval (s)
 
 DRIVER = os.environ.get("DISPLAY_DRIVER", "mock")     # mock | console | waveshare
-# E-ink refresh. Default 1 = every frame a full refresh: reliable, but flashes.
-# Raise it to use partial refresh between fulls (fast, flat) — BUT partial
-# desyncs into static on some 4.2 V2 boards. If yours scrambles, keep this at 1.
-FULL_EVERY = int(os.environ.get("EPD_FULL_EVERY", 1))
+# E-ink refresh mode:
+#   fast  = display_Fast, one quick low-flash refresh (default). Reliable.
+#   full  = display, slow multi-flash refresh. Fallback if fast misbehaves.
+# (partial refresh is intentionally NOT used — it scrambles some 4.2 V2 boards.)
+REFRESH = os.environ.get("EPD_REFRESH", "fast")
+FAST_MODE = os.environ.get("EPD_FAST_MODE", "Seconds_1_5S")  # init_fast LUT
+FULL_EVERY = int(os.environ.get("EPD_FULL_EVERY", 1))         # (unused in fast mode)
