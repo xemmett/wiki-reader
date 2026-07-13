@@ -107,9 +107,12 @@ class WaveshareDisplay(Display):
         if self.rotate:                            # rotate back to native layout
             img = img.rotate(-self.rotate, expand=True, fillcolor=255)
         buf = self.epd.getbuffer(img)
-        # Full refresh on the first frame and every FULL_EVERY-th update (clears
-        # ghosting); partial refresh in between (fast, no flashing).
-        if not self._partial or self._count % config.FULL_EVERY == 0:
+        # First frame is always a full refresh. After that, a full (de-ghost)
+        # refresh every FULL_EVERY updates; FULL_EVERY=0 disables it (all partial,
+        # no self-refresh flash — but ghosting may build up over time).
+        full = self._count == 0 or (config.FULL_EVERY > 0
+                                    and self._count % config.FULL_EVERY == 0)
+        if not self._partial or full:
             self.epd.display(buf)
         else:
             self.epd.display_Partial(buf)

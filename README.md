@@ -175,7 +175,7 @@ out to keep this minimal.
 | `FONT` | auto | path to a `.ttf` |
 | `LEFT_PIN` / `RIGHT_PIN` | `5` / `6` | button BCM pins (keep off the panel's pins) |
 | `HOLD_TIME` | `0.6` | seconds to count a press as a hold |
-| `EPD_FULL_EVERY` | `8` | full (de-ghost) refresh every Nth update; between = partial/no-flash |
+| `EPD_FULL_EVERY` | `8` | full (de-ghost) refresh every Nth update; `0` = never (no self-refresh flash) |
 | `LIBRARY_DIR` / `DB_PATH` | repo paths | content + database location |
 
 ---

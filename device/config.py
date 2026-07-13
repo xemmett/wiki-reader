@@ -31,5 +31,6 @@ POLL = float(os.environ.get("POLL", 0.02))           # button poll interval (s)
 
 DRIVER = os.environ.get("DISPLAY_DRIVER", "mock")     # mock | console | waveshare
 # E-ink: partial refresh (no flash) between full refreshes. Full every Nth update
-# clears accumulated ghosting. Lower = cleaner but more flashing.
+# clears ghosting. 0 = never (all partial after the first frame, no self-refresh
+# flash, but ghosting can build up). Lower = cleaner; higher/0 = fewer flashes.
 FULL_EVERY = int(os.environ.get("EPD_FULL_EVERY", 8))
