@@ -24,10 +24,6 @@ HOLD_TIME = float(os.environ.get("HOLD_TIME", 0.6))  # press >= this = "hold"
 POLL = float(os.environ.get("POLL", 0.02))           # button poll interval (s)
 
 DRIVER = os.environ.get("DISPLAY_DRIVER", "mock")     # mock | console | waveshare
-# E-ink refresh mode:
-#   fast  = display_Fast, one quick low-flash refresh (default). Reliable.
-#   full  = display, slow multi-flash refresh. Fallback if fast misbehaves.
-# (partial refresh is intentionally NOT used — it scrambles some 4.2 V2 boards.)
-REFRESH = os.environ.get("EPD_REFRESH", "fast")
-FAST_MODE = os.environ.get("EPD_FAST_MODE", "Seconds_1_5S")  # init_fast LUT
-FULL_EVERY = int(os.environ.get("EPD_FULL_EVERY", 1))         # (unused in fast mode)
+# E-ink: partial refresh (no flash) between full refreshes. Full every Nth update
+# clears accumulated ghosting. Lower = cleaner but more flashing.
+FULL_EVERY = int(os.environ.get("EPD_FULL_EVERY", 8))

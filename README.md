@@ -174,7 +174,7 @@ out to keep this minimal.
 | `FONT` | auto | path to a `.ttf` |
 | `LEFT_PIN` / `RIGHT_PIN` | `5` / `6` | button BCM pins (keep off the panel's pins) |
 | `HOLD_TIME` | `0.6` | seconds to count a press as a hold |
-| `EPD_REFRESH` | `fast` | `fast` (low-flash) or `full` (slow, reliable fallback) |
+| `EPD_FULL_EVERY` | `8` | full (de-ghost) refresh every Nth update; between = partial/no-flash |
 | `LIBRARY_DIR` / `DB_PATH` | repo paths | content + database location |
 
 ---
@@ -215,8 +215,6 @@ Missing `spidev` or a blank panel → `pip install spidev` and enable SPI:
 - **Battery is a stub** — the bare Pi can't measure it; needs a fuel-gauge HAT.
 - **Markdown renders to plain text** (bold/italic stripped, not styled). Fine for
   reading; add font-weight rendering only if you miss it.
-- **Refresh:** fast refresh by default (`EPD_REFRESH=fast`, `display_Fast`) —
-  one quick low-flash update per move, no scramble. `EPD_REFRESH=full` forces the
-  slow multi-flash refresh. Partial refresh is deliberately unused (it desyncs
-  into static on some 4.2 V2 boards). Recover a scrambled panel with:
-  `python -c "from waveshare_epd import epd4in2_V2 as e; d=e.EPD(); d.init(); d.Clear(); d.sleep()"`
+- **Refresh:** page turns use partial refresh (fast, no flash); a full refresh
+  every `EPD_FULL_EVERY` (default 8) updates clears ghosting. Lower it if ghosting
+  bugs you, raise it for fewer flashes.
