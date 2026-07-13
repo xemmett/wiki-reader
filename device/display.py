@@ -11,8 +11,12 @@ import config
 
 
 class Display:
-    width = config.PANEL_W
-    height = config.PANEL_H
+    rotate = config.ROTATE
+    # Portrait (90/270) swaps the logical canvas that everything renders to.
+    if config.ROTATE in (90, 270):
+        width, height = config.PANEL_H, config.PANEL_W
+    else:
+        width, height = config.PANEL_W, config.PANEL_H
     on_action = None  # mock sets this to app.handle
 
     def show(self, image, text=None):
@@ -90,13 +94,19 @@ class WaveshareDisplay(Display):
         self.epd = mod.EPD()
         self.epd.init()
         self.epd.Clear()
-        self.width = self.epd.width    # driver reports the true panel size
-        self.height = self.epd.height
+        nw, nh = self.epd.width, self.epd.height   # native panel size
+        if self.rotate in (90, 270):               # logical (rendered) size
+            self.width, self.height = nh, nw
+        else:
+            self.width, self.height = nw, nh
         self._count = 0                # updates since last full refresh
         self._partial = hasattr(self.epd, "display_Partial")
 
     def show(self, image, text=None):
-        buf = self.epd.getbuffer(image.convert("1"))
+        img = image.convert("1")
+        if self.rotate:                            # rotate back to native layout
+            img = img.rotate(-self.rotate, expand=True, fillcolor=255)
+        buf = self.epd.getbuffer(img)
         # Full refresh on the first frame and every FULL_EVERY-th update (clears
         # ghosting); partial refresh in between (fast, no flashing).
         if not self._partial or self._count % config.FULL_EVERY == 0:

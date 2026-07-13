@@ -170,6 +170,7 @@ out to keep this minimal.
 | `DISPLAY_DRIVER` | `mock` | `mock` / `console` / `waveshare` |
 | `EPD_MODEL` | `epd4in2_V2` | `waveshare_epd` driver module for your panel |
 | `EPD_WIDTH` / `EPD_HEIGHT` | `400` / `300` | mock/console size (real driver self-reports) |
+| `EPD_ROTATE` | `0` | `0`/`180` landscape, `90`/`270` portrait (flip if upside down) |
 | `FONT_SIZE` | `18` | bigger = more readable, fewer lines |
 | `FONT` | auto | path to a `.ttf` |
 | `LEFT_PIN` / `RIGHT_PIN` | `5` / `6` | button BCM pins (keep off the panel's pins) |

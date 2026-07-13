@@ -15,6 +15,12 @@ PANEL_H = int(os.environ.get("EPD_HEIGHT", 300))
 FONT_SIZE = int(os.environ.get("FONT_SIZE", 18))       # smaller panel -> smaller font
 FONT = os.environ.get("FONT")  # path to a .ttf, else auto-detected
 
+# Screen rotation, degrees clockwise: 0/180 = landscape, 90/270 = portrait.
+# Flip 90<->270 (or 0<->180) if it comes out upside down for your mounting.
+ROTATE = int(os.environ.get("EPD_ROTATE", 0))
+if ROTATE not in (0, 90, 180, 270):
+    ROTATE = 0
+
 # Two buttons. Left = prev/back, Right = next/open.
 # AVOID the panel's pins: 17(RST) 18(PWR) 24(BUSY) 25(DC) 8(CS) + SPI 9/10/11.
 # GPIO5 (header pin 29) and GPIO13 (pin 33) are free; wire each to a GND pin.
