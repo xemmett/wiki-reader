@@ -1,11 +1,12 @@
-"""Two-button control. Tap / hold / both, decoded into actions.
+"""Two-button control by press length — no chords.
 
-  Tap  Left = prev       Right = next
-  Hold Left = back        Right = open
-  Hold both = home        Tap both = sleep
+  Tap        Left = prev        Right = next
+  Hold       Left = back        Right = open
+  Long-hold  Left = home        Right = sleep
 
-The recognizer is pure (no GPIO) so it can be unit-tested. GestureButtons wires
-gpiozero to it; KeyboardInput is the no-hardware fallback.
+Actions fire on release, classified by how long the button was held. Pressing
+both buttons at once does nothing (avoids the fiddly chord timing). The
+recognizer is pure (no GPIO) so it can be unit-tested.
 """
 import sys
 import time
@@ -13,43 +14,47 @@ import config
 
 LEFT, RIGHT, BOTH = 1, 2, 3  # bitmask of pressed buttons
 
+MAP = {
+    (LEFT, "tap"): "prev",  (RIGHT, "tap"): "next",
+    (LEFT, "hold"): "back", (RIGHT, "hold"): "open",
+    (LEFT, "long"): "home", (RIGHT, "long"): "sleep",
+}
+
 
 class Recognizer:
-    """Feed it (state, now); it returns an action string or None.
+    """Feed it (state, now); returns an action on release, else None.
 
-    state is a bitmask: LEFT|RIGHT of currently-pressed buttons.
-    A gesture spans from first press to full release. If both buttons are
-    pressed at any point during it, it counts as "both".
+    state is a bitmask LEFT|RIGHT of currently-pressed buttons. A gesture spans
+    first press to full release. If both buttons are ever down together it's
+    marked invalid and yields nothing.
     """
 
-    def __init__(self, hold_time=None):
-        self.hold = hold_time if hold_time is not None else config.HOLD_TIME
+    def __init__(self, hold_time=None, long_time=None):
+        self.hold = config.HOLD_TIME if hold_time is None else hold_time
+        self.long = config.LONG_HOLD if long_time is None else long_time
         self.start = None
-        self.combo = 0
-        self.fired = False
+        self.btn = 0
+        self.invalid = False
 
     def update(self, state, now):
-        act = None
-        if state and self.start is None:          # gesture begins
-            self.start, self.combo, self.fired = now, state, False
-        elif state:                               # gesture continues
-            self.combo |= state
-        if self.start is not None and not self.fired and state and now - self.start >= self.hold:
-            act = self._hold(self.combo)          # crossed the hold threshold
-            self.fired = True
-        elif self.start is not None and state == 0:  # released
-            if not self.fired:
-                act = self._tap(self.combo)
-            self.start, self.combo, self.fired = None, 0, False
-        return act
+        if state and self.start is None:            # gesture begins
+            self.start, self.btn, self.invalid = now, state, (state == BOTH)
+        elif state and state != self.btn:           # a second button joined
+            self.btn |= state
+            self.invalid = True
+        if self.start is not None and state == 0:   # released -> classify
+            dur = now - self.start
+            act = None if self.invalid else MAP.get((self.btn, self._tier(dur)))
+            self.start, self.btn, self.invalid = None, 0, False
+            return act
+        return None
 
-    @staticmethod
-    def _tap(combo):
-        return {LEFT: "prev", RIGHT: "next", BOTH: "sleep"}.get(combo)
-
-    @staticmethod
-    def _hold(combo):
-        return {LEFT: "back", RIGHT: "open", BOTH: "home"}.get(combo)
+    def _tier(self, dur):
+        if dur >= self.long:
+            return "long"
+        if dur >= self.hold:
+            return "hold"
+        return "tap"
 
 
 class GestureButtons:
@@ -57,8 +62,8 @@ class GestureButtons:
 
     def run(self, emit):
         from gpiozero import Button
-        left = Button(config.LEFT_PIN, hold_time=config.HOLD_TIME)
-        right = Button(config.RIGHT_PIN, hold_time=config.HOLD_TIME)
+        left = Button(config.LEFT_PIN)
+        right = Button(config.RIGHT_PIN)
         rec = Recognizer()
         print(f"Buttons live: L=GPIO{config.LEFT_PIN}  R=GPIO{config.RIGHT_PIN}. Ctrl-C to quit.")
         while True:
@@ -92,21 +97,21 @@ def get_input():
 
 # ---- self-check ------------------------------------------------------------
 def _selftest():
-    r = Recognizer(hold_time=0.5)
-    # quick tap left -> prev
-    assert r.update(LEFT, 0.0) is None
-    assert r.update(0, 0.1) == "prev"
-    # hold right -> open (fires at threshold, release is a no-op)
-    assert r.update(RIGHT, 1.0) is None
-    assert r.update(RIGHT, 1.6) == "open"
-    assert r.update(0, 1.7) is None
-    # both tapped -> sleep
-    assert r.update(LEFT, 2.0) is None
-    assert r.update(BOTH, 2.05) is None
-    assert r.update(0, 2.2) == "sleep"
-    # both held -> home
-    assert r.update(BOTH, 3.0) is None
-    assert r.update(BOTH, 3.6) == "home"
+    r = Recognizer(hold_time=0.5, long_time=1.2)
+
+    def gesture(state, press_at, release_at):
+        assert r.update(state, press_at) is None
+        return r.update(0, release_at)
+
+    assert gesture(LEFT, 0.0, 0.1) == "prev"      # tap
+    assert gesture(RIGHT, 1.0, 1.05) == "next"    # tap
+    assert gesture(LEFT, 2.0, 2.7) == "back"      # hold (0.7s)
+    assert gesture(RIGHT, 3.0, 3.7) == "open"     # hold
+    assert gesture(LEFT, 4.0, 5.5) == "home"      # long-hold (1.5s)
+    assert gesture(RIGHT, 6.0, 7.5) == "sleep"    # long-hold
+    # both down -> nothing
+    assert r.update(BOTH, 8.0) is None
+    assert r.update(0, 8.1) is None
     print("buttons selftest OK")
 
 

@@ -1,5 +1,5 @@
 [Unit]
-Description=Pocket Knowledge e-ink reader
+Description=Piwi e-ink reader
 After=multi-user.target
 
 [Service]

@@ -1,4 +1,4 @@
-# Pocket Knowledge
+# Piwi
 
 A distraction-free, **offline** knowledge device on a Raspberry Pi Zero 2 W with
 an E Ink display. Read Wikipedia articles, books, manuals and docs with a
@@ -70,12 +70,14 @@ its pin and a **GND** pin (internal pull-ups, no resistors).
 > Do **not** use GPIO17/18 — the 4.2" panel uses those (RST/PWR), plus 24/25/8
 > and SPI 9/10/11. Override with `LEFT_PIN`/`RIGHT_PIN` if you pick other pins.
 
-| Gesture | Left | Right |
-|---------|------|-------|
-| **Tap** | Previous | Next |
-| **Hold** (~0.6 s) | Back | Open |
-| **Both tap** | — Sleep — | |
-| **Both hold** | — Home — | |
+| Press length | Left | Right |
+|--------------|------|-------|
+| **Tap** (< `HOLD_TIME`) | Previous | Next |
+| **Hold** (`HOLD_TIME`–`LONG_HOLD`) | Back | Open |
+| **Long-hold** (≥ `LONG_HOLD`) | Home | Sleep |
+
+No chords — actions fire on release, classified by how long you held. Pressing
+both buttons at once does nothing. Defaults: `HOLD_TIME`=0.5 s, `LONG_HOLD`=1.2 s.
 
 The gesture engine (`buttons.py`) is a pure state machine, unit-tested without
 GPIO. On the Pi it's driven by polling; with no `gpiozero` it falls back to the
@@ -160,23 +162,23 @@ Another panel: copy its `epd*.py` too and set `EPD_MODEL` (e.g. `epd7in5_V2`).
 
 ### Autostart on boot (systemd)
 
-A ready unit is in `device/pocket-knowledge.service` (edit `User`, paths, and the
+A ready unit is in `device/piwi.service` (edit `User`, paths, and the
 `Environment=` lines for your setup):
 
 ```bash
 cd ~/wiki-reader/device
-sudo cp pocket-knowledge.service /etc/systemd/system/
+sudo cp piwi.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now pocket-knowledge
+sudo systemctl enable --now piwi
 ```
 
 Manage it:
 
 ```bash
-journalctl -u pocket-knowledge -f      # live logs
-sudo systemctl stop pocket-knowledge   # stop before running manually (else GPIO pin-in-use)
-sudo systemctl restart pocket-knowledge
-sudo systemctl disable pocket-knowledge # stop starting on boot
+journalctl -u piwi -f      # live logs
+sudo systemctl stop piwi   # stop before running manually (else GPIO pin-in-use)
+sudo systemctl restart piwi
+sudo systemctl disable piwi # stop starting on boot
 ```
 
 The panel holds its last image after a stop/shutdown (e-ink physics); the next
@@ -195,7 +197,8 @@ launch's `Clear()` wipes it.
 | `FONT_SIZE` | `18` | bigger = more readable, fewer lines |
 | `FONT` | auto | path to a `.ttf` |
 | `LEFT_PIN` / `RIGHT_PIN` | `5` / `6` | button BCM pins (keep off the panel's pins) |
-| `HOLD_TIME` | `0.6` | seconds to count a press as a hold |
+| `HOLD_TIME` | `0.5` | tap→hold threshold (seconds) |
+| `LONG_HOLD` | `1.2` | hold→long-hold threshold (home/sleep) |
 | `EPD_FULL_EVERY` | `8` | full (de-ghost) refresh every Nth update; `0` = never (no self-refresh flash) |
 | `LIBRARY_DIR` / `DB_PATH` | repo paths | content + database location |
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pocket Knowledge — offline knowledge reader. Boots straight into the library.
+"""Piwi — offline knowledge reader. Boots straight into the library.
 
   Test with no hardware:   python main.py --driver console --seed
   Windowed preview:        python main.py --driver mock --seed
@@ -44,7 +44,7 @@ class App:
             ("Random", self.open_random),
             ("Settings", self.open_settings),
         ]
-        self.stack = [{"title": "Pocket Knowledge", "items": items, "sel": 0}]
+        self.stack = [{"title": "Piwi", "items": items, "sel": 0}]
         self.reading = None
 
     def push(self, title, items):
@@ -78,7 +78,7 @@ class App:
         info = f"Battery: {b}%" if b is not None else "Battery: n/a (no UPS HAT)"
         self.push("Settings", [(info, None),
                                (f"Font size: {config.FONT_SIZE}", None),
-                               ("Pocket Knowledge", None)])
+                               ("Piwi", None)])
 
     def open_article(self, row):
         text = renderer.markdown_to_text(row["body"])
@@ -141,8 +141,8 @@ class App:
         W, H = self.display.width, self.display.height
         if self.asleep:
             img = renderer.render_page(["", "Sleeping.", "Press any button to wake."],
-                                       self.font, W, H, header="Pocket Knowledge")
-            self.display.show(img, text=("Pocket Knowledge", ["", "Sleeping — press to wake."]))
+                                       self.font, W, H, header="Piwi")
+            self.display.show(img, text=("Piwi", ["", "Sleeping — press to wake."]))
         elif self.reading:
             r = self.reading
             info = f"Page {r['page'] + 1} / {len(r['pages'])}"
@@ -170,7 +170,7 @@ class App:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Pocket Knowledge reader")
+    ap = argparse.ArgumentParser(description="Piwi reader")
     ap.add_argument("--driver", choices=["mock", "console", "waveshare"],
                     help="output driver (overrides DISPLAY_DRIVER)")
     ap.add_argument("--seed", action="store_true", help="(re)import library/ into the DB first")

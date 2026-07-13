@@ -45,7 +45,7 @@ class MockDisplay(Display):
         from PIL import ImageTk
         self._ImageTk = ImageTk
         self.root = tk.Tk()
-        self.root.title(f"Pocket Knowledge (mock {self.width}x{self.height})")
+        self.root.title(f"Piwi (mock {self.width}x{self.height})")
         self.root.resizable(False, False)
         self.label = tk.Label(self.root, bg="white")
         self.label.pack()

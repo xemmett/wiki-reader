@@ -26,7 +26,9 @@ if ROTATE not in (0, 90, 180, 270):
 # GPIO5 (header pin 29) and GPIO13 (pin 33) are free; wire each to a GND pin.
 LEFT_PIN = int(os.environ.get("LEFT_PIN", 5))
 RIGHT_PIN = int(os.environ.get("RIGHT_PIN", 13))
-HOLD_TIME = float(os.environ.get("HOLD_TIME", 0.6))  # press >= this = "hold"
+# Press-length thresholds (seconds): tap < HOLD_TIME <= hold < LONG_HOLD <= long.
+HOLD_TIME = float(os.environ.get("HOLD_TIME", 0.5))  # tap -> hold boundary
+LONG_HOLD = float(os.environ.get("LONG_HOLD", 1.2))  # hold -> long-hold boundary
 POLL = float(os.environ.get("POLL", 0.02))           # button poll interval (s)
 
 DRIVER = os.environ.get("DISPLAY_DRIVER", "mock")     # mock | console | waveshare
