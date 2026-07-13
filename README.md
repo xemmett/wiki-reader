@@ -158,8 +158,29 @@ cd device && DISPLAY_DRIVER=waveshare python main.py
 
 Another panel: copy its `epd*.py` too and set `EPD_MODEL` (e.g. `epd7in5_V2`).
 
-Autostart on boot: a one-line systemd unit running that command is enough; left
-out to keep this minimal.
+### Autostart on boot (systemd)
+
+A ready unit is in `device/pocket-knowledge.service` (edit `User`, paths, and the
+`Environment=` lines for your setup):
+
+```bash
+cd ~/wiki-reader/device
+sudo cp pocket-knowledge.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now pocket-knowledge
+```
+
+Manage it:
+
+```bash
+journalctl -u pocket-knowledge -f      # live logs
+sudo systemctl stop pocket-knowledge   # stop before running manually (else GPIO pin-in-use)
+sudo systemctl restart pocket-knowledge
+sudo systemctl disable pocket-knowledge # stop starting on boot
+```
+
+The panel holds its last image after a stop/shutdown (e-ink physics); the next
+launch's `Clear()` wipes it.
 
 ---
 

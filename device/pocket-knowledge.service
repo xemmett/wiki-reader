@@ -1,0 +1,18 @@
+[Unit]
+Description=Pocket Knowledge e-ink reader
+After=multi-user.target
+
+[Service]
+Type=simple
+User=emmett
+WorkingDirectory=/home/emmett/wiki-reader/device
+# Runtime settings — edit to taste (see config.py / README for all knobs):
+Environment=DISPLAY_DRIVER=waveshare
+Environment=EPD_FULL_EVERY=0
+Environment=EPD_ROTATE=0
+ExecStart=/home/emmett/wiki-reader/.venv/bin/python main.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
