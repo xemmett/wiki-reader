@@ -9,6 +9,9 @@ venv/
 device/db.sqlite
 *.sqlite
 
+# Vendored Waveshare driver (GPL, copied from their repo per-device)
+device/waveshare_epd/
+
 # OS
 .DS_Store
 Thumbs.db

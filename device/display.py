@@ -92,9 +92,18 @@ class WaveshareDisplay(Display):
         self.epd.Clear()
         self.width = self.epd.width    # driver reports the true panel size
         self.height = self.epd.height
+        self._count = 0                # updates since last full refresh
+        self._partial = hasattr(self.epd, "display_Partial")
 
     def show(self, image, text=None):
-        self.epd.display(self.epd.getbuffer(image.convert("1")))
+        buf = self.epd.getbuffer(image.convert("1"))
+        # Full refresh on the first frame and every FULL_EVERY-th update (clears
+        # ghosting); partial refresh in between (fast, no flashing).
+        if not self._partial or self._count % config.FULL_EVERY == 0:
+            self.epd.display(buf)
+        else:
+            self.epd.display_Partial(buf)
+        self._count += 1
 
     def sleep(self):
         try:
@@ -104,6 +113,7 @@ class WaveshareDisplay(Display):
 
     def wake(self):
         self.epd.init()
+        self._count = 0  # force a clean full refresh after waking
 
     def close(self):
         self.sleep()

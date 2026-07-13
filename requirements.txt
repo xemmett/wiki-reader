@@ -2,8 +2,9 @@
 Pillow>=10.0.0
 
 # On the Pi, also install the button + panel backends (setup.sh does this):
-#   gpiozero lgpio          # GPIO buttons
-#   waveshare-epd           # from Waveshare's e-Paper repo, not PyPI (see README)
+#   spidev rpi-lgpio lgpio gpiozero   # GPIO buttons + SPI for the panel
+# The panel driver (waveshare_epd) is NOT on PyPI — vendor the two .py files
+# from Waveshare's repo into device/waveshare_epd/ (see README).
 #
 # The FastAPI backend + Wikipedia/EPUB/PDF importers (Phase 3+) are a SEPARATE
 # service, not installed on the device. libzim etc. live there, not here.

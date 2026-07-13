@@ -64,8 +64,11 @@ Keyboard maps to the same actions as the buttons: `p`=prev `n`=next `o`=open
 
 ## Controls — two buttons
 
-Left = **GPIO17**, Right = **GPIO18**. Wire each between its pin and **GND**
-(internal pull-ups, no resistors).
+Left = **GPIO5** (header pin 29), Right = **GPIO6** (pin 31). Wire each between
+its pin and a **GND** pin (internal pull-ups, no resistors).
+
+> Do **not** use GPIO17/18 — the 4.2" panel uses those (RST/PWR), plus 24/25/8
+> and SPI 9/10/11. Override with `LEFT_PIN`/`RIGHT_PIN` if you pick other pins.
 
 | Gesture | Left | Right |
 |---------|------|-------|
@@ -137,11 +140,23 @@ Other panels: set `EPD_MODEL` to the matching `waveshare_epd` module (e.g.
 ```bash
 ./setup.sh
 sudo raspi-config nonint do_spi 0 && sudo reboot
-git clone https://github.com/waveshare/e-Paper
-pip install ./e-Paper/RaspberryPi_JetsonNano/python
+
+# GPIO/SPI backends (rpi-lgpio, not Waveshare's Jetson.GPIO):
+pip install spidev rpi-lgpio lgpio gpiozero
+
+# Vendor the driver: waveshare_epd is NOT on PyPI, and Waveshare's
+# `pip install .../python` drags in Jetson.GPIO which crashes on a Pi.
+# Copy just the two files we need instead:
+git clone https://github.com/waveshare/e-Paper ~/e-Paper
+mkdir -p device/waveshare_epd
+cp ~/e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd/epdconfig.py  device/waveshare_epd/
+cp ~/e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd/epd4in2_V2.py device/waveshare_epd/
+touch device/waveshare_epd/__init__.py
 
 cd device && DISPLAY_DRIVER=waveshare python main.py
 ```
+
+Another panel: copy its `epd*.py` too and set `EPD_MODEL` (e.g. `epd7in5_V2`).
 
 Autostart on boot: a one-line systemd unit running that command is enough; left
 out to keep this minimal.
@@ -157,8 +172,9 @@ out to keep this minimal.
 | `EPD_WIDTH` / `EPD_HEIGHT` | `400` / `300` | mock/console size (real driver self-reports) |
 | `FONT_SIZE` | `18` | bigger = more readable, fewer lines |
 | `FONT` | auto | path to a `.ttf` |
-| `LEFT_PIN` / `RIGHT_PIN` | `17` / `18` | button BCM pins |
+| `LEFT_PIN` / `RIGHT_PIN` | `5` / `6` | button BCM pins (keep off the panel's pins) |
 | `HOLD_TIME` | `0.6` | seconds to count a press as a hold |
+| `EPD_FULL_EVERY` | `8` | full (de-ghost) refresh every Nth page; between = partial/no-flash |
 | `LIBRARY_DIR` / `DB_PATH` | repo paths | content + database location |
 
 ---
@@ -176,6 +192,22 @@ Each phase is usable on its own; nothing built now gets thrown away.
 
 ---
 
+## Troubleshooting
+
+**`Exception: Could not determine Jetson model`** — Waveshare's library installs
+`Jetson.GPIO`, whose fake `RPi.GPIO` shim shadows the real one and crashes on a
+Pi. Fix:
+
+```bash
+pip uninstall -y Jetson.GPIO RPi.GPIO
+pip install rpi-lgpio      # Bookworm-friendly RPi.GPIO drop-in
+```
+
+Missing `spidev` or a blank panel → `pip install spidev` and enable SPI:
+`sudo raspi-config nonint do_spi 0 && sudo reboot`.
+
+---
+
 ## Known ceilings (deliberate simplifications)
 
 - **Sleep sleeps the panel, not the Pi.** True weeks-long standby needs an
@@ -183,5 +215,6 @@ Each phase is usable on its own; nothing built now gets thrown away.
 - **Battery is a stub** — the bare Pi can't measure it; needs a fuel-gauge HAT.
 - **Markdown renders to plain text** (bold/italic stripped, not styled). Fine for
   reading; add font-weight rendering only if you miss it.
-- **Full e-ink refresh per page** (~1–2 s on 4.2"). Partial refresh reduces
-  flicker but ghosts; add later if it bothers you.
+- **Refresh:** page turns use partial refresh (fast, no flash); a full refresh
+  every `EPD_FULL_EVERY` (default 8) pages clears ghosting. Lower it if ghosting
+  bugs you, raise it for fewer flashes.

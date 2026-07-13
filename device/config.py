@@ -16,9 +16,14 @@ FONT_SIZE = int(os.environ.get("FONT_SIZE", 18))       # smaller panel -> smalle
 FONT = os.environ.get("FONT")  # path to a .ttf, else auto-detected
 
 # Two buttons. Left = prev/back, Right = next/open.
-LEFT_PIN = int(os.environ.get("LEFT_PIN", 17))
-RIGHT_PIN = int(os.environ.get("RIGHT_PIN", 18))
+# AVOID the panel's pins: 17(RST) 18(PWR) 24(BUSY) 25(DC) 8(CS) + SPI 9/10/11.
+# GPIO5 (header pin 29) and GPIO6 (pin 31) are free; wire each to a GND pin.
+LEFT_PIN = int(os.environ.get("LEFT_PIN", 5))
+RIGHT_PIN = int(os.environ.get("RIGHT_PIN", 6))
 HOLD_TIME = float(os.environ.get("HOLD_TIME", 0.6))  # press >= this = "hold"
 POLL = float(os.environ.get("POLL", 0.02))           # button poll interval (s)
 
 DRIVER = os.environ.get("DISPLAY_DRIVER", "mock")     # mock | console | waveshare
+# E-ink: partial refresh (no flash) between full refreshes. Full every Nth update
+# clears accumulated ghosting. Lower = cleaner but more flashing.
+FULL_EVERY = int(os.environ.get("EPD_FULL_EVERY", 8))
