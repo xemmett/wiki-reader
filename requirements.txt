@@ -6,10 +6,11 @@ Pillow>=10.0.0
 spidev 
 rpi-lgpio 
 lgpio gpiozero   
-# Piwi Connect web portal
-fastapi 
-uvicorn 
+# Piwi Connect web portal (+ QR code on the device screen)
+fastapi
+uvicorn
 python-multipart
+qrcode
 # The panel driver (waveshare_epd) is NOT on PyPI — vendor the two .py files
 # from Waveshare's repo into device/waveshare_epd/ (see README).
 #

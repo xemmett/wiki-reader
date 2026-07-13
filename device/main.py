@@ -244,13 +244,10 @@ class App:
             return
         self._slept = False
         if self.connect:
-            ip = self.connect["ip"] or "not connected to wifi"
-            url = f"http://{ip}:8000" if self.connect["ip"] else "connect to wifi first"
-            lines = ["", "Piwi Connect is running.", "",
-                     "On a phone or laptop on the same", "wifi, open:", "", "  " + url,
-                     "", "Back to stop."]
-            img = renderer.render_page(lines, self.font, W, H, header="Piwi Connect")
-            self.display.show(img, text=("Piwi Connect", lines))
+            ip = self.connect["ip"]
+            img = renderer.render_connect(ip, W, H, self.font)
+            url = f"http://{ip}:8000" if ip else "connect to wifi first"
+            self.display.show(img, text=("Piwi Connect", ["Scan, or open:", url, "", "Back to stop."]))
         elif self.reading:
             r = self.reading
             title, off = r["row"]["title"], r["off"]

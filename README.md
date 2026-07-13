@@ -106,8 +106,9 @@ Home. Menu screens show a wifi icon + clock top-right; reading stays clean text.
 ## Piwi Connect — add articles over wifi
 
 On the device: **Settings → Piwi Connect**. It starts a small web portal and
-shows the Pi's address, e.g. `http://192.168.1.42:8000`. Open that on any phone or
-laptop on the same wifi to:
+shows the Pi's address, e.g. `http://192.168.1.42:8000`, as text **and a QR code** —
+scan it with a phone to jump straight there. Open that on any phone or laptop on
+the same wifi to:
 
 - add a Wikipedia article by title or URL (fetched, converted to Markdown),
 - upload a `.md` file,

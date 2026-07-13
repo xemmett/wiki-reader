@@ -11,7 +11,7 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 # Buttons (lgpio backend on Bookworm) + Piwi Connect web portal.
-pip install gpiozero lgpio fastapi uvicorn python-multipart
+pip install gpiozero lgpio fastapi uvicorn python-multipart qrcode
 
 echo
 echo "Base install done. Seed the library and test in the terminal:"

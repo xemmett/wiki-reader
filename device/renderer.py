@@ -98,6 +98,47 @@ def render_page(lines, font, width, height, margin=14, line_h=None, header=None)
     return img
 
 
+def _qr_image(data):
+    try:
+        import qrcode
+    except Exception:
+        return None                    # qrcode not installed -> caller shows text only
+    qr = qrcode.QRCode(border=1)
+    qr.add_data(data)
+    qr.make(fit=True)
+    return qr.make_image(fill_color="black", back_color="white").convert("L")
+
+
+def render_connect(ip, W, H, font, margin=14):
+    """Piwi Connect screen: title, URL, and a QR code of the URL."""
+    img = Image.new("L", (W, H), 255)
+    d = ImageDraw.Draw(img)
+    a, de = font.getmetrics()
+    lh = a + de + 6
+    y = margin
+    d.text((margin, y), "Piwi Connect", font=font, fill=0)
+    y += lh
+    d.line((margin, y, W - margin, y), fill=0)
+    y += 10
+    if not ip:
+        for t in ("", "Connect the Pi to wifi first.", "", "Back to stop."):
+            d.text((margin, y), t, font=font, fill=0)
+            y += lh
+        return img
+    url = f"http://{ip}:8000"
+    d.text((margin, y), "Scan, or open:", font=font, fill=0)
+    y += lh
+    d.text((margin, y), url, font=font, fill=0)
+    y += lh + 6
+    qr = _qr_image(url)
+    if qr:
+        size = min(H - y - margin - lh, W - 2 * margin)   # leave room for footer
+        if size > 40:
+            img.paste(qr.resize((size, size), Image.NEAREST), ((W - size) // 2, y))
+    d.text((margin, H - lh - 2), "Back to stop.", font=font, fill=0)
+    return img
+
+
 def fit_image(img, W, H, trim_max=0.20):
     """Photo-frame fit to a W×H panel (grayscale). Cover (fill, crop) if <= trim_max
     of the image would be cropped; otherwise contain (whole photo, letterboxed)."""
