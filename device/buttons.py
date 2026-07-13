@@ -3,9 +3,9 @@
   Tap   Left = prev       Right = next       Both = sleep
   Hold  Left = back       Right = open       Both = home
 
-Actions fire on release. During a gesture (first press to full release) we latch
-every button that was down at any point, so "both" registers reliably even if you
-hit the second button slightly late — nothing is decided until you let go.
+A hold fires the moment it crosses HOLD_TIME (while still pressed); a tap fires on
+release. Buttons down together latch as "both" — for a hold-both, both must be
+down by the time the threshold hits.
 
 The recognizer is pure (no GPIO) so it can be unit-tested.
 """
@@ -31,18 +31,22 @@ class Recognizer:
         self.hold = config.HOLD_TIME if hold_time is None else hold_time
         self.start = None
         self.combo = 0
+        self.fired = False      # hold already fired for this gesture
 
     def update(self, state, now):
-        if state and self.start is None:        # gesture begins
-            self.start, self.combo = now, state
-        elif state:                             # latch any button that joins
+        act = None
+        if state and self.start is None:            # gesture begins
+            self.start, self.combo, self.fired = now, state, False
+        elif state:                                 # latch any button that joins
             self.combo |= state
-        if self.start is not None and state == 0:   # full release -> classify
-            tier = "hold" if now - self.start >= self.hold else "tap"
-            act = MAP.get((self.combo, tier))
-            self.start, self.combo = None, 0
-            return act
-        return None
+        if self.start is not None and not self.fired and state and now - self.start >= self.hold:
+            act = MAP.get((self.combo, "hold"))     # fire hold as soon as held long enough
+            self.fired = True
+        elif self.start is not None and state == 0:  # released
+            if not self.fired:
+                act = MAP.get((self.combo, "tap"))
+            self.start, self.combo, self.fired = None, 0, False
+        return act
 
 
 class GestureButtons:
@@ -87,19 +91,22 @@ def get_input():
 def _selftest():
     r = Recognizer(hold_time=0.5)
 
-    # single tap / hold
+    # tap fires on release
     assert r.update(LEFT, 0.0) is None
     assert r.update(0, 0.1) == "prev"
+    # hold fires at the threshold, not on release
     assert r.update(RIGHT, 1.0) is None
-    assert r.update(0, 1.7) == "open"          # 0.7s hold
-
-    # both, joined late, still latches -> sleep (tap) / home (hold)
-    assert r.update(LEFT, 2.0) is None         # left down first
-    assert r.update(BOTH, 2.2) is None         # right joins 200ms later
-    assert r.update(0, 2.3) == "sleep"         # released quick -> tap-both
-    assert r.update(RIGHT, 3.0) is None
+    assert r.update(RIGHT, 1.6) == "open"      # crossed HOLD_TIME while held
+    assert r.update(0, 1.7) is None            # release: no double fire
+    # tap-both -> sleep (on release)
+    assert r.update(LEFT, 2.0) is None
+    assert r.update(BOTH, 2.1) is None
+    assert r.update(0, 2.2) == "sleep"
+    # hold-both -> home (both down by the threshold)
+    assert r.update(LEFT, 3.0) is None
     assert r.update(BOTH, 3.1) is None
-    assert r.update(0, 4.0) == "home"          # held -> hold-both
+    assert r.update(BOTH, 3.6) == "home"
+    assert r.update(0, 3.7) is None
     print("buttons selftest OK")
 
 

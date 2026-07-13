@@ -75,9 +75,9 @@ its pin and a **GND** pin (internal pull-ups, no resistors).
 | **Tap** (< `HOLD_TIME`) | Previous | Next | Sleep |
 | **Hold** (≥ `HOLD_TIME`) | Back | Open | Home |
 
-Actions fire on release. During a press we latch every button that goes down, so
-"both" registers reliably even if the second button lands slightly late — nothing
-is decided until you let go. Default `HOLD_TIME`=0.5 s.
+A hold fires the instant you cross `HOLD_TIME` (no need to release); a tap fires on
+release. Buttons pressed together latch as "both" — for hold-both, get both down
+before the threshold hits. Default `HOLD_TIME`=0.5 s.
 
 The gesture engine (`buttons.py`) is a pure state machine, unit-tested without
 GPIO. On the Pi it's driven by polling; with no `gpiozero` it falls back to the
