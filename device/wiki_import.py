@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import re
+import sys
 import urllib.parse
 import urllib.request
 
@@ -63,22 +64,42 @@ def save(category, title, md):
     return path
 
 
-def image_url(title, lang="en"):
-    params = {"action": "query", "prop": "pageimages", "piprop": "thumbnail",
-              "pithumbsize": 1000, "redirects": 1, "format": "json", "titles": title}
-    url = f"https://{lang}.wikipedia.org/w/api.php?" + urllib.parse.urlencode(params)
+def _get_json(url):
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     with urllib.request.urlopen(req, timeout=20) as r:
-        page = next(iter(json.load(r)["query"]["pages"].values()))
-    thumb = page.get("thumbnail")
-    return thumb["source"] if thumb else None
+        return json.load(r)
+
+
+def image_url(title, lang="en"):
+    # 1) pageimages — Wikipedia's curated lead image
+    params = {"action": "query", "prop": "pageimages", "piprop": "thumbnail",
+              "pithumbsize": 1000, "redirects": 1, "format": "json", "titles": title}
+    page = next(iter(_get_json(
+        f"https://{lang}.wikipedia.org/w/api.php?" + urllib.parse.urlencode(params)
+    )["query"]["pages"].values()))
+    if page.get("thumbnail"):
+        return page["thumbnail"]["source"]
+    # 2) REST summary — broader heuristic; catches leads pageimages misses.
+    #    Prefer the raster thumbnail over originalimage (which may be an SVG).
+    try:
+        s = _get_json(f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/"
+                      + urllib.parse.quote(title, safe=""))
+        for k in ("thumbnail", "originalimage"):
+            src = (s.get(k) or {}).get("source")
+            if src:
+                return src
+    except Exception:
+        pass
+    return None
 
 
 def save_image(category, title, lang="en"):
-    """Download the article's lead image as grayscale <slug>.png. Best-effort."""
+    """Download the article's lead image as grayscale <slug>.png. Best-effort;
+    prints the reason to stderr when it skips so failures aren't invisible."""
     try:
         url = image_url(title, lang)
         if not url:
+            print(f"[image] no lead image for {title!r}", file=sys.stderr)
             return None
         req = urllib.request.Request(url, headers={"User-Agent": UA})
         with urllib.request.urlopen(req, timeout=20) as r:
@@ -90,7 +111,8 @@ def save_image(category, title, lang="en"):
         path = library.image_file(category, title)
         im.save(path)
         return path
-    except Exception:
+    except Exception as e:
+        print(f"[image] failed for {title!r}: {e}", file=sys.stderr)
         return None    # image is optional; never block the import on it
 
 
