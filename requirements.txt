@@ -3,6 +3,7 @@ Pillow>=10.0.0
 
 # On the Pi, also install the button + panel backends (setup.sh does this):
 #   spidev rpi-lgpio lgpio gpiozero   # GPIO buttons + SPI for the panel
+#   fastapi uvicorn python-multipart  # Piwi Connect web portal
 # The panel driver (waveshare_epd) is NOT on PyPI — vendor the two .py files
 # from Waveshare's repo into device/waveshare_epd/ (see README).
 #

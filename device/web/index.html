@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piwi Connect</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 0 auto;
+         padding: 1.2rem; line-height: 1.5; }
+  h1 { font-size: 1.4rem; margin: 0 0 .2rem; }
+  .sub { opacity: .6; margin: 0 0 1.4rem; }
+  section { border: 1px solid #8888; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
+  h2 { font-size: 1rem; margin: 0 0 .6rem; }
+  input, button { font: inherit; padding: .5rem .6rem; border-radius: 8px;
+                  border: 1px solid #8886; }
+  input { width: 100%; box-sizing: border-box; margin-bottom: .5rem; background: transparent; color: inherit; }
+  button { cursor: pointer; }
+  .row { display: flex; gap: .5rem; }
+  .row input { margin: 0; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { display: flex; justify-content: space-between; align-items: center;
+       padding: .4rem 0; border-bottom: 1px solid #8883; }
+  li small { opacity: .55; }
+  .del { border: none; background: none; color: #c0392b; font-size: 1.1rem; }
+  #msg { min-height: 1.2rem; opacity: .8; }
+</style>
+</head>
+<body>
+  <h1>Piwi Connect</h1>
+  <p class="sub">Add articles to your device over wifi.</p>
+  <div id="msg"></div>
+
+  <section>
+    <h2>Add a Wikipedia article</h2>
+    <input id="article" placeholder="Title or URL, e.g. Apollo 11">
+    <div class="row">
+      <input id="category" placeholder="category (e.g. science)" value="wikipedia">
+      <button onclick="doImport()">Add</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Upload a Markdown file</h2>
+    <input type="file" id="file" accept=".md">
+    <div class="row">
+      <input id="upcat" placeholder="category" value="uploads">
+      <button onclick="doUpload()">Upload</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Library</h2>
+    <ul id="lib"></ul>
+  </section>
+
+<script>
+const msg = t => document.getElementById("msg").textContent = t;
+
+async function load() {
+  const r = await fetch("/api/library");
+  const items = await r.json();
+  const ul = document.getElementById("lib");
+  ul.innerHTML = "";
+  for (const a of items) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${a.title} <small>${a.category}</small></span>`;
+    const b = document.createElement("button");
+    b.className = "del"; b.textContent = "✕";
+    b.onclick = () => del(a.id);
+    li.appendChild(b);
+    ul.appendChild(li);
+  }
+}
+
+async function doImport() {
+  const article = document.getElementById("article").value.trim();
+  if (!article) return;
+  const category = document.getElementById("category").value.trim() || "wikipedia";
+  msg("Fetching…");
+  const body = new FormData();
+  body.append("article", article); body.append("category", category);
+  const r = await fetch("/api/import", { method: "POST", body });
+  const d = await r.json();
+  msg(r.ok ? `Added "${d.title}"` : (d.detail || "Failed"));
+  document.getElementById("article").value = "";
+  load();
+}
+
+async function doUpload() {
+  const f = document.getElementById("file").files[0];
+  if (!f) return;
+  const body = new FormData();
+  body.append("file", f);
+  body.append("category", document.getElementById("upcat").value.trim() || "uploads");
+  const r = await fetch("/api/upload", { method: "POST", body });
+  const d = await r.json();
+  msg(r.ok ? `Uploaded "${d.title}"` : (d.detail || "Failed"));
+  load();
+}
+
+async function del(id) {
+  await fetch("/api/article/" + id, { method: "DELETE" });
+  load();
+}
+
+load();
+</script>
+</body>
+</html>

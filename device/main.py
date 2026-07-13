@@ -18,8 +18,12 @@ try:
 except Exception:
     pass
 
+import os
+import time as _time
+
 import config
 import library
+import net
 import renderer
 from display import get_display
 from buttons import get_input
@@ -32,6 +36,7 @@ class App:
         self.font = renderer.load_font()
         self.stack = []        # menu screens: {title, items:[(label, thunk)], sel}
         self.reading = None    # {row, pages, page, line_h}
+        self.connect = None    # {proc, ip} while Piwi Connect is running
         self.asleep = False
         self._slept = False    # panel put to sleep for the current sleep screen
         self.home()
@@ -77,9 +82,19 @@ class App:
         import battery
         b = battery.read()
         info = f"Battery: {b}%" if b is not None else "Battery: n/a (no UPS HAT)"
-        self.push("Settings", [(info, None),
-                               (f"Font size: {config.FONT_SIZE}", None),
-                               ("Piwi", None)])
+        self.push("Settings", [("Piwi Connect", self.start_connect),
+                               (info, None),
+                               (f"Font size: {config.FONT_SIZE}", None)])
+
+    def start_connect(self):
+        import subprocess
+        proc = subprocess.Popen([sys.executable, os.path.join(config.BASE, "connect.py")])
+        self.connect = {"proc": proc, "ip": net.get_ip()}
+
+    def stop_connect(self):
+        if self.connect:
+            self.connect["proc"].terminate()
+            self.connect = None
 
     def open_article(self, row):
         text = renderer.markdown_to_text(row["body"])
@@ -103,6 +118,11 @@ class App:
         elif self.asleep:               # any press wakes
             self.asleep = False
             self.display.wake()
+        elif self.connect:              # Piwi Connect screen: back/home stops it
+            if action in ("back", "home"):
+                self.stop_connect()
+                if action == "home":
+                    self.home()
         elif action == "sleep":
             self.asleep = True
         elif action == "home":
@@ -151,7 +171,15 @@ class App:
                 self._slept = True
             return
         self._slept = False
-        if self.reading:
+        if self.connect:
+            ip = self.connect["ip"] or "not connected to wifi"
+            url = f"http://{ip}:8000" if self.connect["ip"] else "connect to wifi first"
+            lines = ["", "Piwi Connect is running.", "",
+                     "On a phone or laptop on the same", "wifi, open:", "", "  " + url,
+                     "", "Back to stop."]
+            img = renderer.render_page(lines, self.font, W, H, header="Piwi Connect")
+            self.display.show(img, text=("Piwi Connect", lines))
+        elif self.reading:
             r = self.reading
             info = f"Page {r['page'] + 1} / {len(r['pages'])}"
             lines = [info, ""] + r["pages"][r["page"]]
@@ -160,15 +188,18 @@ class App:
             self.display.show(img, text=(r["row"]["title"], lines))
         else:
             scr = self.stack[-1]
+            status = (net.connected(), _time.strftime("%H:%M"))
             labels = [lb for lb, _ in scr["items"]]
             marked = [("→ " if i == scr["sel"] else "   ") + lb for i, lb in enumerate(labels)]
-            img = renderer.render_menu(labels, scr["sel"], self.font, W, H, title=scr["title"])
+            img = renderer.render_menu(labels, scr["sel"], self.font, W, H,
+                                       title=scr["title"], status=status)
             self.display.show(img, text=(scr["title"], marked))
 
     # ponytail: sleep only powers down the panel. True weeks-long standby needs an
     # RTC/PiSugar to cut Pi power and wake on a button — add when you have the HAT.
 
     def quit(self):
+        self.stop_connect()
         self.display.close()
         sys.exit(0)
 

@@ -81,13 +81,32 @@ def render_page(lines, font, width, height, margin=14, line_h=None, header=None)
     return img
 
 
-def render_menu(labels, selected, font, width, height, margin=14, title="Menu"):
+def draw_wifi(d, x, y, on=True):
+    """Small wifi glyph (~16 wide) at top-left corner (x, y)."""
+    cx, base = x + 8, y + 13
+    if on:
+        for r in (3, 7, 11):
+            d.arc([cx - r, base - r, cx + r, base + r], 225, 315, fill=0)
+        d.ellipse([cx - 1, base - 1, cx + 1, base + 1], fill=0)
+    else:                                  # not connected: little X
+        d.line([x + 1, y + 1, x + 13, y + 12], fill=0)
+        d.line([x + 13, y + 1, x + 1, y + 12], fill=0)
+
+
+def render_menu(labels, selected, font, width, height, margin=14, title="Menu",
+                status=None):
     img = Image.new("L", (width, height), 255)
     d = ImageDraw.Draw(img)
     a, de = font.getmetrics()
     line_h = a + de + 12
     y = margin
     d.text((margin, y), title, font=font, fill=0)
+    if status:                             # wifi icon + clock, top-right
+        connected, timestr = status
+        tw = d.textlength(timestr, font=font)
+        tx = width - margin - tw
+        d.text((tx, y), timestr, font=font, fill=0)
+        draw_wifi(d, int(tx - 24), y, connected)
     y += line_h
     d.line((margin, y, width - margin, y), fill=0)
     y += 8

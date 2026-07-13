@@ -10,8 +10,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
-# Buttons on GPIO17/18. lgpio is the pin backend on Bookworm.
-pip install gpiozero lgpio
+# Buttons (lgpio backend on Bookworm) + Piwi Connect web portal.
+pip install gpiozero lgpio fastapi uvicorn python-multipart
 
 echo
 echo "Base install done. Seed the library and test in the terminal:"

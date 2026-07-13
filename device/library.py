@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS articles (
 def connect(path=None):
     db = sqlite3.connect(path or config.DB_PATH)
     db.row_factory = sqlite3.Row
+    db.execute("PRAGMA journal_mode=WAL")   # reader + importer can share the DB
     db.execute(SCHEMA)
     return db
 
@@ -73,6 +74,16 @@ def articles(db, category):
 
 def get(db, article_id):
     return db.execute("SELECT * FROM articles WHERE id=?", (article_id,)).fetchone()
+
+
+def all_articles(db):
+    return db.execute(
+        "SELECT id, title, category FROM articles ORDER BY category, title").fetchall()
+
+
+def delete(db, article_id):
+    db.execute("DELETE FROM articles WHERE id=?", (article_id,))
+    db.commit()   # ponytail: leaves the .md file; re-seeding would re-add it
 
 
 def recent(db, n=10):
