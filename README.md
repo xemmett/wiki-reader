@@ -72,12 +72,13 @@ its pin and a **GND** pin (internal pull-ups, no resistors).
 
 | Gesture | Left | Right | Both |
 |---------|------|-------|------|
-| **Tap** (< `HOLD_TIME`) | Previous | Next | Sleep |
-| **Hold** (≥ `HOLD_TIME`) | Back | Open | Home |
+| **Single click** | Previous | Next | Sleep |
+| **Double click** | Back | Open | Home |
 
-Actions fire on release. During a press we latch every button that goes down, so
-"both" registers reliably even if the second button lands slightly late — nothing
-is decided until you let go. Default `HOLD_TIME`=0.5 s.
+Mouse style. Two clicks of the same button within `DOUBLE_GAP` = double-click;
+otherwise the single fires once that window passes (so single clicks lag by up to
+`DOUBLE_GAP`). "Both" latches even if the second button lands slightly late.
+Default `DOUBLE_GAP`=0.3 s.
 
 The gesture engine (`buttons.py`) is a pure state machine, unit-tested without
 GPIO. On the Pi it's driven by polling; with no `gpiozero` it falls back to the
@@ -197,7 +198,7 @@ launch's `Clear()` wipes it.
 | `FONT_SIZE` | `18` | bigger = more readable, fewer lines |
 | `FONT` | auto | path to a `.ttf` |
 | `LEFT_PIN` / `RIGHT_PIN` | `5` / `6` | button BCM pins (keep off the panel's pins) |
-| `HOLD_TIME` | `0.5` | tap→hold threshold (seconds) |
+| `DOUBLE_GAP` | `0.3` | max seconds between two clicks to count as a double |
 | `EPD_FULL_EVERY` | `8` | full (de-ghost) refresh every Nth update; `0` = never (no self-refresh flash) |
 | `LIBRARY_DIR` / `DB_PATH` | repo paths | content + database location |
 

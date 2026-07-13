@@ -26,8 +26,9 @@ if ROTATE not in (0, 90, 180, 270):
 # GPIO5 (header pin 29) and GPIO13 (pin 33) are free; wire each to a GND pin.
 LEFT_PIN = int(os.environ.get("LEFT_PIN", 5))
 RIGHT_PIN = int(os.environ.get("RIGHT_PIN", 13))
-# Press < HOLD_TIME = tap, >= HOLD_TIME = hold. Actions fire on release.
-HOLD_TIME = float(os.environ.get("HOLD_TIME", 0.5))
+# Two taps of the same button within DOUBLE_GAP = double-click. A single click
+# fires only after this window passes (so it costs a bit of latency).
+DOUBLE_GAP = float(os.environ.get("DOUBLE_GAP", 0.3))
 POLL = float(os.environ.get("POLL", 0.02))           # button poll interval (s)
 
 DRIVER = os.environ.get("DISPLAY_DRIVER", "mock")     # mock | console | waveshare

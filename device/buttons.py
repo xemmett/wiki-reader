@@ -1,13 +1,11 @@
-"""Two-button control: tap / hold / both.
+"""Two-button control, mouse style: single-click / double-click.
 
-  Tap   Left = prev       Right = next       Both = sleep
-  Hold  Left = back       Right = open       Both = home
+  Single  Left = prev       Right = next       Both = sleep
+  Double  Left = back        Right = open       Both = home
 
-Actions fire on release. During a gesture (first press to full release) we latch
-every button that was down at any point, so "both" registers reliably even if you
-hit the second button slightly late — nothing is decided until you let go.
-
-The recognizer is pure (no GPIO) so it can be unit-tested.
+A "click" is one press-and-release (both buttons latch if pressed together). Two
+clicks of the same kind within DOUBLE_GAP = a double-click; otherwise the single
+fires once the window passes. The recognizer is pure (no GPIO), unit-tested.
 """
 import sys
 import time
@@ -15,33 +13,47 @@ import config
 
 LEFT, RIGHT, BOTH = 1, 2, 3  # bitmask of pressed buttons
 
-MAP = {
-    (LEFT, "tap"): "prev",  (RIGHT, "tap"): "next",  (BOTH, "tap"): "sleep",
-    (LEFT, "hold"): "back", (RIGHT, "hold"): "open", (BOTH, "hold"): "home",
-}
+SINGLE = {LEFT: "prev", RIGHT: "next", BOTH: "sleep"}
+DOUBLE = {LEFT: "back", RIGHT: "open", BOTH: "home"}
 
 
 class Recognizer:
-    """Feed it (state, now); returns an action on release, else None.
+    """Feed it (state, now) every tick; returns an action or None.
 
     state is a bitmask LEFT|RIGHT of currently-pressed buttons.
     """
 
-    def __init__(self, hold_time=None):
-        self.hold = config.HOLD_TIME if hold_time is None else hold_time
-        self.start = None
-        self.combo = 0
+    def __init__(self, double_gap=None):
+        self.gap = config.DOUBLE_GAP if double_gap is None else double_gap
+        self.start = None       # press-in-progress start time
+        self.combo = 0          # buttons latched during the current press
+        self.pending = None     # (click_type, time) awaiting a possible 2nd click
 
     def update(self, state, now):
-        if state and self.start is None:        # gesture begins
+        # 1) detect a completed click (press -> full release)
+        click = None
+        if state and self.start is None:
             self.start, self.combo = now, state
-        elif state:                             # latch any button that joins
+        elif state:
             self.combo |= state
-        if self.start is not None and state == 0:   # full release -> classify
-            tier = "hold" if now - self.start >= self.hold else "tap"
-            act = MAP.get((self.combo, tier))
+        if self.start is not None and state == 0:
+            click = self.combo
             self.start, self.combo = None, 0
-            return act
+
+        # 2) turn clicks into single/double
+        if click is not None:
+            if self.pending and self.pending[0] == click and now - self.pending[1] <= self.gap:
+                self.pending = None
+                return DOUBLE[click]            # matched -> double
+            flushed = SINGLE[self.pending[0]] if self.pending else None
+            self.pending = (click, now)          # this click now waits for a partner
+            return flushed                       # a different pending click resolves as single
+
+        # 3) a lone click whose window expired resolves as a single
+        if self.pending and now - self.pending[1] > self.gap:
+            t = self.pending[0]
+            self.pending = None
+            return SINGLE[t]
         return None
 
 
@@ -85,21 +97,25 @@ def get_input():
 
 # ---- self-check ------------------------------------------------------------
 def _selftest():
-    r = Recognizer(hold_time=0.5)
+    r = Recognizer(double_gap=0.3)
 
-    # single tap / hold
-    assert r.update(LEFT, 0.0) is None
-    assert r.update(0, 0.1) == "prev"
-    assert r.update(RIGHT, 1.0) is None
-    assert r.update(0, 1.7) == "open"          # 0.7s hold
+    def click(combo, t):
+        assert r.update(combo, t) is None      # press
+        return r.update(0, t + 0.02)           # release
 
-    # both, joined late, still latches -> sleep (tap) / home (hold)
-    assert r.update(LEFT, 2.0) is None         # left down first
-    assert r.update(BOTH, 2.2) is None         # right joins 200ms later
-    assert r.update(0, 2.3) == "sleep"         # released quick -> tap-both
-    assert r.update(RIGHT, 3.0) is None
-    assert r.update(BOTH, 3.1) is None
-    assert r.update(0, 4.0) == "home"          # held -> hold-both
+    # single left -> prev (after the window)
+    assert click(LEFT, 0.0) is None
+    assert r.update(0, 0.5) == "prev"
+    # double right -> open
+    assert click(RIGHT, 1.0) is None
+    assert click(RIGHT, 1.1) == "open"
+    # double both -> home
+    assert click(BOTH, 2.0) is None
+    assert click(BOTH, 2.1) == "home"
+    # different buttons in quick succession resolve as two singles
+    assert click(LEFT, 3.0) is None
+    assert click(RIGHT, 3.1) == "prev"         # left flushed when right clicks
+    assert r.update(0, 3.6) == "next"          # right's window expires
     print("buttons selftest OK")
 
 
