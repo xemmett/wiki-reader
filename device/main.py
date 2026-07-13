@@ -33,6 +33,7 @@ class App:
         self.stack = []        # menu screens: {title, items:[(label, thunk)], sel}
         self.reading = None    # {row, pages, page, line_h}
         self.asleep = False
+        self._slept = False    # panel put to sleep for the current sleep screen
         self.home()
 
     # ---- screens ----
@@ -89,25 +90,27 @@ class App:
 
     # ---- input ----
     def handle(self, action):
+        """One action + redraw (used by the mock's Tkinter loop)."""
+        self.apply(action)
+        self.render()
+
+    def apply(self, action):
+        """Mutate state for one action, no drawing. The main loop batches these
+        (drain all queued clicks, apply each, render once) so rapid clicks jump
+        several rows with a single e-ink refresh instead of one refresh each."""
         if action == "quit":
             self.quit()
-        if self.asleep:                 # any press wakes
+        elif self.asleep:               # any press wakes
             self.asleep = False
             self.display.wake()
-            self.render()
-            return
-        if action == "sleep":
-            self.sleep()
-            return
-        if action == "home":
+        elif action == "sleep":
+            self.asleep = True
+        elif action == "home":
             self.home()
-            self.render()
-            return
-        if self.reading:
+        elif self.reading:
             self._reading_action(action)
         else:
             self._menu_action(action)
-        self.render()
 
     def _reading_action(self, action):
         r = self.reading
@@ -143,7 +146,12 @@ class App:
             img = renderer.render_page(["", "Sleeping.", "Press any button to wake."],
                                        self.font, W, H, header="Piwi")
             self.display.show(img, text=("Piwi", ["", "Sleeping — press to wake."]))
-        elif self.reading:
+            if not self._slept:          # sleep the panel once, after drawing
+                self.display.sleep()
+                self._slept = True
+            return
+        self._slept = False
+        if self.reading:
             r = self.reading
             info = f"Page {r['page'] + 1} / {len(r['pages'])}"
             lines = [info, ""] + r["pages"][r["page"]]
@@ -157,12 +165,8 @@ class App:
             img = renderer.render_menu(labels, scr["sel"], self.font, W, H, title=scr["title"])
             self.display.show(img, text=(scr["title"], marked))
 
-    def sleep(self):
-        self.asleep = True
-        self.render()
-        self.display.sleep()
-        # ponytail: this only sleeps the panel. True weeks-long standby needs an
-        # RTC/PiSugar to cut Pi power and wake on button — add when you have the HAT.
+    # ponytail: sleep only powers down the panel. True weeks-long standby needs an
+    # RTC/PiSugar to cut Pi power and wake on a button — add when you have the HAT.
 
     def quit(self):
         self.display.close()
@@ -198,7 +202,23 @@ def main():
         display.on_action = app.handle
         display.run()                 # Tkinter mainloop
     else:
-        get_input().run(app.handle)   # GPIO buttons, or keyboard fallback
+        # Input runs in its own thread so it keeps sampling buttons during the
+        # (slow, blocking) e-ink refresh. The main loop drains all queued clicks
+        # and renders once — rapid clicks jump several rows per refresh.
+        import queue
+        import threading
+        q = queue.Queue()
+        threading.Thread(target=get_input().run, args=(q.put,), daemon=True).start()
+        while True:
+            batch = [q.get()]         # block for the first
+            try:
+                while True:
+                    batch.append(q.get_nowait())   # then grab everything queued
+            except queue.Empty:
+                pass
+            for action in batch:
+                app.apply(action)
+            app.render()
 
 
 if __name__ == "__main__":
