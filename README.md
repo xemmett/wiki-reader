@@ -70,14 +70,14 @@ its pin and a **GND** pin (internal pull-ups, no resistors).
 > Do **not** use GPIO17/18 — the 4.2" panel uses those (RST/PWR), plus 24/25/8
 > and SPI 9/10/11. Override with `LEFT_PIN`/`RIGHT_PIN` if you pick other pins.
 
-| Press length | Left | Right |
-|--------------|------|-------|
-| **Tap** (< `HOLD_TIME`) | Previous | Next |
-| **Hold** (`HOLD_TIME`–`LONG_HOLD`) | Back | Open |
-| **Long-hold** (≥ `LONG_HOLD`) | Home | Sleep |
+| Gesture | Left | Right | Both |
+|---------|------|-------|------|
+| **Tap** (< `HOLD_TIME`) | Previous | Next | Sleep |
+| **Hold** (≥ `HOLD_TIME`) | Back | Open | Home |
 
-No chords — actions fire on release, classified by how long you held. Pressing
-both buttons at once does nothing. Defaults: `HOLD_TIME`=0.5 s, `LONG_HOLD`=1.2 s.
+Actions fire on release. During a press we latch every button that goes down, so
+"both" registers reliably even if the second button lands slightly late — nothing
+is decided until you let go. Default `HOLD_TIME`=0.5 s.
 
 The gesture engine (`buttons.py`) is a pure state machine, unit-tested without
 GPIO. On the Pi it's driven by polling; with no `gpiozero` it falls back to the
@@ -198,7 +198,6 @@ launch's `Clear()` wipes it.
 | `FONT` | auto | path to a `.ttf` |
 | `LEFT_PIN` / `RIGHT_PIN` | `5` / `6` | button BCM pins (keep off the panel's pins) |
 | `HOLD_TIME` | `0.5` | tap→hold threshold (seconds) |
-| `LONG_HOLD` | `1.2` | hold→long-hold threshold (home/sleep) |
 | `EPD_FULL_EVERY` | `8` | full (de-ghost) refresh every Nth update; `0` = never (no self-refresh flash) |
 | `LIBRARY_DIR` / `DB_PATH` | repo paths | content + database location |
 
