@@ -19,11 +19,12 @@ FONT = os.environ.get("FONT")  # path to a .ttf, else auto-detected
 # AVOID the panel's pins: 17(RST) 18(PWR) 24(BUSY) 25(DC) 8(CS) + SPI 9/10/11.
 # GPIO5 (header pin 29) and GPIO6 (pin 31) are free; wire each to a GND pin.
 LEFT_PIN = int(os.environ.get("LEFT_PIN", 5))
-RIGHT_PIN = int(os.environ.get("RIGHT_PIN", 6))
+RIGHT_PIN = int(os.environ.get("RIGHT_PIN", 13))
 HOLD_TIME = float(os.environ.get("HOLD_TIME", 0.6))  # press >= this = "hold"
 POLL = float(os.environ.get("POLL", 0.02))           # button poll interval (s)
 
 DRIVER = os.environ.get("DISPLAY_DRIVER", "mock")     # mock | console | waveshare
-# E-ink: partial refresh (no flash) between full refreshes. Full every Nth update
-# clears accumulated ghosting. Lower = cleaner but more flashing.
-FULL_EVERY = int(os.environ.get("EPD_FULL_EVERY", 8))
+# E-ink refresh. Default 1 = every frame a full refresh: reliable, but flashes.
+# Raise it to use partial refresh between fulls (fast, flat) — BUT partial
+# desyncs into static on some 4.2 V2 boards. If yours scrambles, keep this at 1.
+FULL_EVERY = int(os.environ.get("EPD_FULL_EVERY", 1))
