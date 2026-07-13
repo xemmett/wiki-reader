@@ -33,6 +33,12 @@ from display import get_display
 from buttons import get_input
 
 
+def _folder(cat):
+    """Sanitize an AI-suggested folder name into a safe single directory name."""
+    cat = (cat or "Recommended").replace("/", " ").replace("\\", " ").strip()
+    return cat or "Recommended"
+
+
 class App:
     def __init__(self, db, display):
         self.db = db
@@ -105,36 +111,39 @@ class App:
         import ai_recommend
         import wiki_import
         db = library.connect()
+        pick = r["category"]
+        is_all = pick.lower() == "all"
         try:
             have = [row["title"] for row in library.all_articles(db)]
-            titles = ai_recommend.suggest(r["category"], have)
+            items = ai_recommend.suggest(pick, have, library.categories(db))
         except Exception as e:
             r["lines"] = ["AI error:", str(e)[:80], "", "Back to return."]
             r["done"] = True
             self._notify()
             return
-        target = r["category"] if r["category"].lower() != "all" else "recommended"
         have = {t.lower() for t in have}
         added = 0
-        r["lines"] = [f"Got {len(titles)} ideas. Downloading…"]
+        r["lines"] = [f"Got {len(items)} ideas. Downloading…"]
         self._notify()
-        for t in titles:
+        for guess, cat in items:
             if r["cancel"]:
                 return
             try:
-                title, extract = wiki_import.fetch(t)
+                title, extract = wiki_import.fetch(guess)
             except Exception:
                 continue                      # skip titles Wikipedia can't resolve
             if title.lower() in have:
                 continue                      # drop duplicates
             have.add(title.lower())
-            wiki_import.save(target, title, wiki_import.to_markdown(title, extract))
-            wiki_import.save_image(target, title)
+            # "All" files each into the AI's assigned folder; a specific pick keeps that folder
+            folder = _folder(cat) if is_all else pick
+            wiki_import.save(folder, title, wiki_import.to_markdown(title, extract))
+            wiki_import.save_image(folder, title)
             added += 1
-            r["lines"] = [f"Added {added}…", title[:40]]
+            r["lines"] = [f"Added {added}…", f"{title[:28]} -> {folder}"]
             self._notify()
         library.import_dir(db)
-        r["lines"] = [f"Done — added {added} articles", f"to '{target}'.", "", "Back to return."]
+        r["lines"] = [f"Done — added {added} articles.", "", "Back to return."]
         r["done"] = True
         self._notify()
 

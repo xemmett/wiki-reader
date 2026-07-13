@@ -141,9 +141,13 @@ by `device/connect.py` — no React build step.
 
 **Home → AI Recommend → pick a folder** (`All`, or one category). Piwi samples up to
 10 titles already in that folder, asks a cheap LLM for ~10 related Wikipedia
-articles you don't have, drops duplicates, and downloads them (into the chosen
-category, or a `recommended` folder for `All`). Progress shows on screen; **Back**
-cancels.
+articles you don't have, drops duplicates, and downloads them. Progress shows on
+screen; **Back** cancels.
+
+Filing: a **specific folder** puts everything there. **`All`** asks the AI to file
+each article into a folder — reusing an existing folder when it fits, otherwise
+creating a sensible new one (so a mix comes back sorted into `History`,
+`Science`, etc. rather than one dump).
 
 **Set the provider + API key from Piwi Connect** (Settings → Piwi Connect → open the
 portal → *AI Recommend settings*). It's saved to `device/ai.json` (gitignored); the

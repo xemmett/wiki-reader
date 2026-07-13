@@ -79,25 +79,33 @@ def _call(provider, key, model, prompt):
     return data["choices"][0]["message"]["content"]
 
 
-def _parse_titles(text):
-    """Pull a JSON array of titles out of the model's reply, tolerating stray prose."""
+def _parse_items(text):
+    """Pull (title, category) pairs from the reply. Accepts a JSON array of
+    {title, category} objects, of bare title strings, or a bulleted list."""
     s, e = text.find("["), text.rfind("]")
     if s != -1 and e != -1 and e > s:
         try:
-            return [str(x) for x in json.loads(text[s:e + 1])]
+            out = []
+            for x in json.loads(text[s:e + 1]):
+                if isinstance(x, dict):
+                    out.append((str(x.get("title", "")), x.get("category")))
+                else:
+                    out.append((str(x), None))
+            return out
         except Exception:
             pass
-    # fallback: one title per line, strip bullets/numbering
+    # fallback: one title per line, no category
     out = []
     for ln in text.splitlines():
         ln = ln.strip().lstrip("-*0123456789. ").strip().strip('"')
         if ln:
-            out.append(ln)
+            out.append((ln, None))
     return out
 
 
-def suggest(category, have_titles, n=10):
-    """Return up to n new Wikipedia titles for `category`, excluding have_titles."""
+def suggest(category, have_titles, existing_categories=None, n=10):
+    """Return up to n (title, category) suggestions, excluding have_titles.
+    category is the folder picked on the device ("All" lets the AI choose folders)."""
     provider, model_override, key = _settings()
     if provider not in PROVIDERS:
         raise RuntimeError(f"Unknown provider: {provider}")
@@ -105,28 +113,33 @@ def suggest(category, have_titles, n=10):
         raise RuntimeError("No AI key. Set it in Piwi Connect.")
     model = model_override or PROVIDERS[provider]["model"]
     topic = "any interesting subject" if category.lower() == "all" else f"the topic '{category}'"
+    folders = ", ".join(existing_categories or []) or "(none yet)"
     sample = have_titles[:10]
     prompt = (
-        f"I keep a small offline Wikipedia reader. My library on {topic} already has: "
+        f"I keep a small offline Wikipedia reader organised into folders. "
+        f"Existing folders: {folders}. My library on {topic} already has: "
         f"{', '.join(sample) if sample else '(nothing yet)'}. "
         f"Suggest {n} more real English Wikipedia article titles about {topic} that are "
-        f"NOT already listed. Reply with ONLY a JSON array of exact article-title strings, "
-        f'e.g. ["Titanic", "Apollo 11"]. No other text.')
-    titles = _parse_titles(_call(provider, key, model, prompt))
+        f"NOT already listed. For each, assign a folder — reuse an existing folder name "
+        f"when it fits, otherwise a short sensible new one. Reply with ONLY a JSON array of "
+        f'objects like [{{"title": "Titanic", "category": "History"}}]. No other text.')
+    items = _parse_items(_call(provider, key, model, prompt))
     have = {t.strip().lower() for t in have_titles}
     out, seen = [], set()
-    for t in titles:
-        k = t.strip().lower()
-        if t.strip() and k not in have and k not in seen:
+    for title, cat in items:
+        k = title.strip().lower()
+        if title.strip() and k not in have and k not in seen:
             seen.add(k)
-            out.append(t.strip())
+            out.append((title.strip(), (cat or "").strip() or None))
     return out[:n]
 
 
 # ---- self-check ------------------------------------------------------------
 def _selftest():
-    assert _parse_titles('junk ["A","B","A"] tail') == ["A", "B", "A"]
-    assert _parse_titles("- One\n2. Two\n\"Three\"") == ["One", "Two", "Three"]
+    assert _parse_items('x [{"title":"A","category":"H"},{"title":"B"}] y') == [
+        ("A", "H"), ("B", None)]
+    assert _parse_items('["A","B"]') == [("A", None), ("B", None)]
+    assert _parse_items("- One\n2. Two") == [("One", None), ("Two", None)]
     print("ai_recommend selftest OK")
 
 
