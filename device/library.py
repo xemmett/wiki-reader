@@ -115,9 +115,47 @@ def all_articles(db):
         "SELECT id, title, category FROM articles ORDER BY category, title").fetchall()
 
 
+def _delete_files(category, title):
+    """Remove an article's .md (and cover .png) from disk so a re-scan can't re-add it."""
+    d = os.path.join(config.LIBRARY_DIR, category)
+    if not os.path.isdir(d):
+        return
+    slug = slugify(title)
+    removed = False
+    # primary: files named by the title's slug (how imports save them)
+    for ext in (".md", ".png"):
+        p = os.path.join(d, slug + ext)
+        if os.path.exists(p):
+            os.remove(p)
+            removed = removed or ext == ".md"
+    # fallback: a hand-named .md whose heading/title matches
+    if not removed:
+        for fn in os.listdir(d):
+            if not fn.endswith(".md"):
+                continue
+            fp = os.path.join(d, fn)
+            try:
+                if _title_of(open(fp, encoding="utf-8").read(), fn).strip().lower() \
+                        == title.strip().lower():
+                    os.remove(fp)
+                    png = os.path.splitext(fp)[0] + ".png"
+                    if os.path.exists(png):
+                        os.remove(png)
+                    break
+            except OSError:
+                continue
+    try:
+        os.rmdir(d)      # tidy up if the category folder is now empty
+    except OSError:
+        pass             # not empty (or gone) — fine
+
+
 def delete(db, article_id):
+    row = get(db, article_id)
+    if row:
+        _delete_files(row["category"], row["title"])
     db.execute("DELETE FROM articles WHERE id=?", (article_id,))
-    db.commit()   # ponytail: leaves the .md file; re-seeding would re-add it
+    db.commit()
 
 
 def recent(db, n=10):
@@ -168,6 +206,24 @@ def _selftest():
     set_position(db, row["id"], 3)
     assert get(db, row["id"])["read_position"] == 3
     assert continue_reading(db)["title"] == "Titanic"
+
+    # delete must remove files from disk so import_dir can't re-add the article
+    import tempfile
+    orig = config.LIBRARY_DIR
+    config.LIBRARY_DIR = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(config.LIBRARY_DIR, "Science"))
+        md = os.path.join(config.LIBRARY_DIR, "Science", "apollo_11.md")
+        open(md, "w", encoding="utf-8").write("# Apollo 11\n\nText.")
+        n = import_dir(db)
+        assert n == 1
+        row = articles(db, "Science")[0]
+        delete(db, row["id"])
+        assert not os.path.exists(md), "md file should be gone"
+        assert import_dir(db) == 0, "deleted article must not re-appear on re-scan"
+        assert articles(db, "Science") == []
+    finally:
+        config.LIBRARY_DIR = orig
     print("library selftest OK")
 
 
