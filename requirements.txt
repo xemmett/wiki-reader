@@ -11,9 +11,7 @@ fastapi
 uvicorn
 python-multipart
 qrcode
-# Listen (text-to-speech)
-piper-tts
-# System packages (apt): bluez network-manager pipewire pipewire-audio wireplumber
+# System packages (apt): network-manager  (Wi-Fi setup via nmcli)
 # The panel driver (waveshare_epd) is NOT on PyPI — vendor the two .py files
 # from Waveshare's repo into device/waveshare_epd/ (see README).
 #

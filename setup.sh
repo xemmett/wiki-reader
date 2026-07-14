@@ -3,22 +3,15 @@
 set -euo pipefail
 
 sudo apt update
-sudo apt install -y python3-venv python3-pip fonts-dejavu libopenjp2-7 \
-  bluez network-manager pipewire pipewire-audio wireplumber
+sudo apt install -y python3-venv python3-pip fonts-dejavu libopenjp2-7 network-manager
 
 python3 -m venv .venv
 # shellcheck disable=SC1091
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
-# Buttons (lgpio backend on Bookworm) + Piwi Connect web portal + TTS (Listen).
-pip install gpiozero lgpio fastapi uvicorn python-multipart qrcode piper-tts
-
-# Download a small piper voice for Listen (~20 MB, "low" quality tier).
-mkdir -p device/voices
-base="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/low"
-curl -fL -o device/voices/en_US-lessac-low.onnx      "$base/en_US-lessac-low.onnx"
-curl -fL -o device/voices/en_US-lessac-low.onnx.json "$base/en_US-lessac-low.onnx.json"
+# Buttons (lgpio backend on Bookworm) + Piwi Connect web portal.
+pip install gpiozero lgpio fastapi uvicorn python-multipart qrcode
 
 echo
 echo "Base install done. Seed the library and test in the terminal:"
