@@ -71,11 +71,19 @@ class App:
         self.stack.append({"title": title, "items": items or [("(empty)", None)], "sel": 0})
 
     def open_library(self):
-        cats = library.categories(self.db)
-        self.push("Library", [(c, lambda c=c: self.open_category(c)) for c in cats])
+        colls = library.collections(self.db)
+        if len(colls) == 1:                     # only one collection -> skip a level
+            self.open_collection(colls[0], title="Library")
+        else:
+            self.push("Library", [(c, lambda c=c: self.open_collection(c)) for c in colls])
 
-    def open_category(self, category):
-        rows = library.articles(self.db, category)
+    def open_collection(self, collection, title=None):
+        cats = library.categories(self.db, collection)
+        self.push(title or collection,
+                  [(c, lambda c=c: self.open_category(collection, c)) for c in cats])
+
+    def open_category(self, collection, category):
+        rows = library.articles(self.db, collection, category)
         self.push(category, [(r["title"], lambda r=r: self.open_article(r)) for r in rows])
 
     def open_recent(self):
@@ -93,7 +101,8 @@ class App:
             self.open_article(row)
 
     def open_ai_recommend(self):
-        cats = ["All"] + library.categories(self.db)
+        # AI Recommend fetches Wikipedia articles -> scoped to the Wikipedia collection
+        cats = ["All"] + library.categories(self.db, "Wikipedia")
         self.push("AI Recommend — pick a folder",
                   [(c, lambda c=c: self.run_recommend(c)) for c in cats])
 
@@ -115,7 +124,7 @@ class App:
         is_all = pick.lower() == "all"
         try:
             have = [row["title"] for row in library.all_articles(db)]
-            items = ai_recommend.suggest(pick, have, library.categories(db))
+            items = ai_recommend.suggest(pick, have, library.categories(db, "Wikipedia"))
         except Exception as e:
             r["lines"] = ["AI error:", str(e)[:80], "", "Back to return."]
             r["done"] = True
@@ -137,8 +146,8 @@ class App:
             have.add(title.lower())
             # "All" files each into the AI's assigned folder; a specific pick keeps that folder
             folder = _folder(cat) if is_all else pick
-            wiki_import.save(folder, title, wiki_import.to_markdown(title, extract))
-            wiki_import.save_image(folder, title)
+            wiki_import.save("Wikipedia", folder, title, wiki_import.to_markdown(title, extract))
+            wiki_import.save_image("Wikipedia", folder, title)
             added += 1
             r["lines"] = [f"Added {added}…", f"{title[:28]} -> {folder}"]
             self._notify()
@@ -179,12 +188,11 @@ class App:
                     pass
             self.connect = None
 
-    # ---- Bluetooth ----
     def _layout(self):
         return f"{config.ROTATE}:{config.FONT_SIZE}:{self.display.width}x{self.display.height}"
 
     def _cover_image(self, row):
-        p = library.image_file(row["category"], row["title"])
+        p = library.image_file(row["collection"], row["category"], row["title"])
         if os.path.exists(p):
             try:
                 return renderer.fit_image(Image.open(p), self.display.width, self.display.height)
@@ -394,13 +402,15 @@ def main():
         library._selftest()
         import ai_recommend
         ai_recommend._selftest()
+        import epub
+        epub._selftest()
         import wifi
         wifi._selftest()
         print("all selftests OK")
         return
 
     db = library.connect()
-    if args.seed or not library.categories(db):
+    if args.seed or not library.collections(db):
         n = library.import_dir(db)
         print(f"Imported {n} articles from {config.LIBRARY_DIR}")
 

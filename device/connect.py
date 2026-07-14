@@ -35,27 +35,41 @@ def api_library():
 
 
 @app.post("/api/import")
-def api_import(article: str = Form(...), category: str = Form("wikipedia"),
+def api_import(article: str = Form(...), category: str = Form("General"),
                lang: str = Form("en")):
     try:
         title, extract = wiki_import.fetch(wiki_import.title_from_arg(article), lang)
     except SystemExit as e:
         raise HTTPException(404, str(e))
-    wiki_import.save(category, title, wiki_import.to_markdown(title, extract))
-    wiki_import.save_image(category, title, lang)
+    wiki_import.save("Wikipedia", category, title, wiki_import.to_markdown(title, extract))
+    wiki_import.save_image("Wikipedia", category, title, lang)
     library.import_dir(library.connect())
     return {"ok": True, "title": title}
 
 
 @app.post("/api/upload")
-async def api_upload(file: UploadFile, category: str = Form("uploads")):
+async def api_upload(file: UploadFile, category: str = Form("Uploads")):
     if not file.filename.endswith(".md"):
         raise HTTPException(400, "only .md files")
     body = (await file.read()).decode("utf-8", "replace")
     title = wiki_import.title_from_arg(file.filename[:-3])
-    wiki_import.save(category, title, body)
+    wiki_import.save("Wikipedia", category, title, body)
     library.import_dir(library.connect())
     return {"ok": True, "title": title}
+
+
+@app.post("/api/epub")
+async def api_epub(file: UploadFile, category: str = Form("Books")):
+    if not file.filename.endswith(".epub"):
+        raise HTTPException(400, "only .epub files")
+    d = os.path.join(config.LIBRARY_DIR, "Books", category)
+    os.makedirs(d, exist_ok=True)
+    dest = os.path.join(d, os.path.basename(file.filename))
+    with open(dest, "wb") as f:
+        f.write(await file.read())
+    # import_dir converts the .epub to Markdown, extracts the cover, deletes the .epub
+    library.import_dir(library.connect())
+    return {"ok": True}
 
 
 @app.delete("/api/article/{article_id}")

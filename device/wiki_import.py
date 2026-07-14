@@ -55,8 +55,8 @@ def to_markdown(title, extract):
     return "\n".join(out)
 
 
-def save(category, title, md):
-    d = os.path.join(config.LIBRARY_DIR, category)
+def save(collection, category, title, md):
+    d = os.path.join(config.LIBRARY_DIR, collection, category)
     os.makedirs(d, exist_ok=True)
     path = os.path.join(d, library.slugify(title) + ".md")
     with open(path, "w", encoding="utf-8") as f:
@@ -93,7 +93,7 @@ def image_url(title, lang="en"):
     return None
 
 
-def save_image(category, title, lang="en"):
+def save_image(collection, category, title, lang="en"):
     """Download the article's lead image as grayscale <slug>.png. Best-effort;
     prints the reason to stderr when it skips so failures aren't invisible."""
     try:
@@ -108,7 +108,7 @@ def save_image(category, title, lang="en"):
         from PIL import Image
         im = Image.open(io.BytesIO(data)).convert("L")
         im.thumbnail((1000, 1000))
-        path = library.image_file(category, title)
+        path = library.image_file(collection, category, title)
         im.save(path)
         return path
     except Exception as e:
@@ -124,8 +124,8 @@ def main():
     args = ap.parse_args()
 
     title, extract = fetch(title_from_arg(args.article), args.lang)
-    path = save(args.category, title, to_markdown(title, extract))
-    save_image(args.category, title, args.lang)  # best-effort cover image
+    path = save("Wikipedia", args.category, title, to_markdown(title, extract))
+    save_image("Wikipedia", args.category, title, args.lang)  # best-effort cover image
     db = library.connect()
     library.import_dir(db)                       # rescan; upsert keeps read positions
     print(f"Saved '{title}' -> {path} and imported into the library.")

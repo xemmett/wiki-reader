@@ -44,8 +44,17 @@
     <h2>Upload a Markdown file</h2>
     <input type="file" id="file" accept=".md">
     <div class="row">
-      <input id="upcat" placeholder="category" value="uploads">
+      <input id="upcat" placeholder="category" value="Uploads">
       <button onclick="doUpload()">Upload</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Upload an EPUB book</h2>
+    <input type="file" id="epub" accept=".epub">
+    <div class="row">
+      <input id="epubcat" placeholder="genre / category" value="Books">
+      <button onclick="doEpub()">Upload book</button>
     </div>
   </section>
 
@@ -88,7 +97,7 @@ async function load() {
   ul.innerHTML = "";
   for (const a of items) {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${a.title} <small>${a.category}</small></span>`;
+    li.innerHTML = `<span>${a.title} <small>${a.collection} / ${a.category}</small></span>`;
     const b = document.createElement("button");
     b.className = "del"; b.textContent = "✕";
     b.onclick = () => del(a.id);
@@ -120,6 +129,18 @@ async function doUpload() {
   const r = await fetch("/api/upload", { method: "POST", body });
   const d = await r.json();
   msg(r.ok ? `Uploaded "${d.title}"` : (d.detail || "Failed"));
+  load();
+}
+
+async function doEpub() {
+  const f = document.getElementById("epub").files[0];
+  if (!f) return;
+  const body = new FormData();
+  body.append("file", f);
+  body.append("category", document.getElementById("epubcat").value.trim() || "Books");
+  msg("Converting book… (larger books take a moment)");
+  const r = await fetch("/api/epub", { method: "POST", body });
+  msg(r.ok ? "Book added under Books." : "Failed to add book.");
   load();
 }
 

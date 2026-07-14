@@ -23,9 +23,13 @@ articles over wifi. Phase 4 (EPUB/PDF, collections) is scoped but not built.
 
 ## The idea
 
-The device reads **Markdown files**, not raw wiki dumps. Everything it shows is a
-1-bit image the code generates, so swapping *where the image goes* is the only
-difference between "testing on my laptop" and "running on the Pi".
+The device reads **Markdown files**, organised as **collections → categories →
+articles** (e.g. `Wikipedia/History/titanic.md`, `Books/Fiction/dune.md`).
+Everything it shows is a 1-bit image the code generates, so swapping *where the
+image goes* is the only difference between "testing on my laptop" and "running on
+the Pi". EPUBs dropped in are converted to Markdown on import and the `.epub` is
+deleted (text-only, small on disk) — the reader has no HTML engine, so there's no
+way to render a book "as is" on e-ink; every e-ink reader extracts the text.
 
 ```
 library/*.md ──> SQLite ──> Markdown->text ──> paginated 1-bit image ──> DRIVER
@@ -112,6 +116,7 @@ the same wifi to:
 
 - add a Wikipedia article by title or URL (fetched, converted to Markdown),
 - upload a `.md` file,
+- **upload an EPUB book** (converted to Markdown, filed under the `Books` collection),
 - browse and delete the library.
 
 Each imported article also grabs its **lead image** (saved as `<slug>.png` next to
@@ -194,16 +199,20 @@ device/
     connect.py     Piwi Connect FastAPI web portal
     wiki_import.py Wikipedia -> Markdown importer (CLI + used by the portal)
     ai_recommend.py LLM suggestions (Anthropic/OpenAI/Grok, raw HTTPS)
+    epub.py        EPUB -> text/cover (stdlib), used by the importer
     wifi.py        Wi-Fi connect + setup hotspot via nmcli
     web/index.html self-contained portal page
     battery.py     stub (needs a UPS HAT to report anything)
     db.sqlite      created on first run
 library/
-    history/  programming/  science/  travel/   ...one .md per article
+    Wikipedia/History/titanic.md   Science/apollo_11.md   ...
+    Books/Fiction/dune.md          ...one .md per article
 ```
 
-Add articles by dropping `library/<category>/<name>.md` and re-running with
-`--seed`. Title comes from the first `# heading`, else the filename.
+Add content by dropping `library/<collection>/<category>/<name>.md` (or a `.epub`
+into a Books category — it converts on import) and re-running with `--seed`. Title
+comes from the first `# heading` (or EPUB metadata), else the filename. Old flat
+`library/<category>/*.md` auto-moves into a `Wikipedia` collection on first import.
 
 ---
 
@@ -295,9 +304,9 @@ launch's `Clear()` wipes it.
   browse, delete), Wikipedia→Markdown importer, on-device start/stop, wifi/clock
   status icon. (Portal is one HTML page, not a React app; hourly auto-sync not
   built — you add on demand.)
-- **Phase 4 — in progress.** Wi-Fi setup via hotspot (done, untested on hardware).
-  Still later: EPUB/PDF import, collections/favourites, doc packs, better typography.
-  (Listen/TTS and Bluetooth were tried and removed.)
+- **Phase 4 — in progress.** Collections (Wikipedia/Books), EPUB import, Wi-Fi setup
+  via hotspot (done; Wi-Fi untested on hardware). Still later: PDF import,
+  favourites, better typography. (Listen/TTS and Bluetooth were tried and removed.)
 
 Each phase is usable on its own; nothing built now gets thrown away.
 
