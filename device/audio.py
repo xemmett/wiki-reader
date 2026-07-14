@@ -70,6 +70,7 @@ class Player:
                     synth_to_wav(self.pages[self.idx], wav)
                 except Exception as e:
                     self.on_update(self.idx, f"TTS error: {e}")
+                    print(f"TTS error: {e}")
                     return
             if self._stop:
                 break
